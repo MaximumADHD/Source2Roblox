@@ -100,7 +100,7 @@ namespace Source2Roblox.Textures
             }
         }
 
-        private static void LazySetupEnv(ref int width, ref int height, int depth, out int pixels, out int blocks, out Color[] colors)
+        private static void LazySetupEnv(ref int width, ref int height, int depth, out int blocks, out Color[] colors)
         {
             if (width < 4)
                 width = 4;
@@ -108,7 +108,7 @@ namespace Source2Roblox.Textures
             if (height < 4)
                 height = 4;
 
-            pixels = width * height;
+            int pixels = width * height;
             blocks = pixels / 16;
 
             colors = new Color[pixels * depth];
@@ -116,7 +116,7 @@ namespace Source2Roblox.Textures
 
         public static Color[] ReadPixels_DXT1(BinaryReader reader, int width, int height, int depth, bool alpha = false)
         {
-            LazySetupEnv(ref width, ref height, depth, out int pixels, out int blocks, out var colors);
+            LazySetupEnv(ref width, ref height, depth, out int blocks, out var colors);
 
             var clrParams = new DXTColorParams
             {
@@ -134,7 +134,7 @@ namespace Source2Roblox.Textures
         public static Color[] ReadPixels_DXT3(BinaryReader reader, int width, int height, int depth)
         {
             ulong alpha = 0;
-            LazySetupEnv(ref width, ref height, depth, out int pixels, out int blocks, out var colors);
+            LazySetupEnv(ref width, ref height, depth, out int blocks, out var colors);
             
             var clrParams = new DXTColorParams
             {
@@ -169,7 +169,7 @@ namespace Source2Roblox.Textures
                  a1 = 0;
 
             ulong alphaBuffer = 0;
-            LazySetupEnv(ref width, ref height, depth, out int pixels, out int blocks, out var colors);
+            LazySetupEnv(ref width, ref height, depth, out int blocks, out var colors);
 
             var clrParams = new DXTColorParams
             {
