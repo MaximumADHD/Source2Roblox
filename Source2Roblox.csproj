@@ -102,7 +102,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Documents\GitHub\Roblox-File-Format\RobloxFileFormat.csproj">
+    <ProjectReference Include="..\Roblox-File-Format\RobloxFileFormat.csproj">
       <Project>{cf50c0e2-23a7-4dc1-b4b2-e60cde716253}</Project>
       <Name>RobloxFileFormat</Name>
     </ProjectReference>
