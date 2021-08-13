@@ -40,7 +40,7 @@ namespace Source2Roblox.FileSystem
             }
         }
 
-        private Optional<string> GetRouting(string path)
+        private string GetRouting(string path)
         {
             if (routing.TryGetValue(path, out string route))
                 return route;
