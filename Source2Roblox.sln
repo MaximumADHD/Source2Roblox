@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30914.41
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceLevelPorter", "SourceLevelPorter.csproj", "{06A125B7-A2B3-42EB-89B4-DE8D01153383}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RobloxFileFormat", "..\..\..\Documents\GitHub\Roblox-File-Format\RobloxFileFormat.csproj", "{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{06A125B7-A2B3-42EB-89B4-DE8D01153383}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06A125B7-A2B3-42EB-89B4-DE8D01153383}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06A125B7-A2B3-42EB-89B4-DE8D01153383}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06A125B7-A2B3-42EB-89B4-DE8D01153383}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {047FB489-1E74-48DB-BE53-F787511E0214}
+	EndGlobalSection
+EndGlobal
