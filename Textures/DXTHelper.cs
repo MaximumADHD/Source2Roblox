@@ -192,7 +192,7 @@ namespace Source2Roblox.Textures
                     else if (code < 6)
                         alpha = ((6 - code) * a0 + (code - 1) * a1) / 5;
                     else if (code == 6)
-                        alpha = 255;
+                        alpha = 0;
 
                     return (byte)alpha;
                 }
