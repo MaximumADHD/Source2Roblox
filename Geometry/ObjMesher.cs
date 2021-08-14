@@ -6,6 +6,7 @@ using Source2Roblox.World.Types;
 
 using RobloxFiles.DataTypes;
 using Source2Roblox.Models;
+using System.Linq;
 
 namespace Source2Roblox
 {
@@ -15,10 +16,10 @@ namespace Source2Roblox
 
         public static string BakeMDL(ModelFile model, int lod = 0)
         {
-            var verts = model.VertexData.GetVertices(lod);
+            var allVerts = model.Vertices;
             var writer = new StringBuilder();
-
-            foreach (var vert in verts)
+            
+            foreach (var vert in allVerts)
             {
                 var pos = vert.Position / 10f;
                 writer.AppendLine($"v {pos.X} {pos.Z} {-pos.Y}");
@@ -28,6 +29,50 @@ namespace Source2Roblox
 
                 var uv = vert.UV;
                 writer.AppendLine($"vt {uv.X} {uv.Y}");
+
+                // Pad each entry.
+                writer.AppendLine();
+            }
+
+            var meshes = model
+                .BodyParts[0]
+                .Models[0]
+                .LODs[lod]
+                .Meshes;
+
+            var groups = meshes
+                .Select(mesh => mesh.StripGroups)
+                .Where(meshGroups => meshGroups.Any())
+                .Select(meshGroups => meshGroups.First())
+                .ToArray();
+
+            for (int g = 0; g < groups.Length; g++)
+            {
+                var group = groups[g];
+                
+                var verts = group.Verts;
+                var indices = group.Indices;
+
+                writer.AppendLine($"g group_{g}");
+                writer.AppendLine($" usemtl test_{g}");
+
+                for (int i = 0; i < indices.Length; i += 3)
+                {
+                    writer.Append("  f");
+
+                    for (int j = 0; j < 3; j++)
+                    {
+                        int index = indices[i + j];
+                        StripVertex stripVert = verts[index];
+
+                        int vvdVertIndex = stripVert.Index;
+                        int face = 1 + vvdVertIndex;
+
+                        writer.Append($" {face}/{face}/{face}");
+                    }
+
+                    writer.AppendLine();
+                }
             }
 
             return writer.ToString();

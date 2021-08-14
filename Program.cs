@@ -5,6 +5,7 @@ using System.Diagnostics;
 using Source2Roblox.World;
 using Source2Roblox.FileSystem;
 using Source2Roblox.Models;
+using System.IO;
 
 namespace Source2Roblox
 {
@@ -59,6 +60,12 @@ namespace Source2Roblox
             {
                 var mdl = new ModelFile(model);
                 string obj = ObjMesher.BakeMDL(mdl);
+
+                var info = new FileInfo(model);
+                string name = info.Name;
+
+                string path = Path.Combine(@"C:\Users\clone\Desktop", $"{name}.obj");
+                File.WriteAllText(path, obj);
 
                 Debugger.Break();
             }

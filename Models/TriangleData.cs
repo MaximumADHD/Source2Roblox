@@ -1,203 +1,191 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-
+using RobloxFiles.DataTypes;
 using Source2Roblox.FileSystem;
 
 namespace Source2Roblox.Models
 {
     [Flags]
-    public enum StripFlags
+    public enum StripFlags : byte
     {
-        IsTriList = 0x01,
-        IsTriStrip = 0x02
+        None,
+        IsTriList,
+        IsTriStrip
     }
-    
+
     [Flags]
-    public enum StripGroupFlags
+    public enum StripGroupFlags : byte
     {
+        None,
         IsFlexed = 0x01,
         IsHardwareSkinned = 0x02,
         IsDeltaFlexed = 0x04,
         SuppressHardwareMorph = 0x08
     }
 
-    public struct StripGroup
+    [Flags]
+    public enum StudioMeshFlags : byte
     {
-        public int NumVerts;
-        public int VertOffset;
-
-        public int NumIndices;
-        public int IndexOffset;
-
-        public int NumStrips;
-        public int StripOffset;
-
-        public StripFlags Flags;
+        None,
+        IsTeeth,
+        IsEyes
     }
 
-    public struct StudioMesh
+    public class StripVertex
     {
-        public int NumStripGroups;
-        public int StripGroupOffset;
+        public float[] BoneWeights;
+        public byte[] BoneIds;
 
-        public byte Flags;
-        public List<StripGroup> StripGroups;
+        public StripGroup Group;
+        public int Index;
+
+        public override string ToString()
+        {
+            return $"{Index}";
+        }
+
+        public static implicit operator int(StripVertex vertex)
+        {
+            return vertex.Index;
+        }
     }
 
-    public struct StudioModelLOD
+    public class StripGroup
+    {
+        public StripGroupFlags Flags;
+        public StripVertex[] Verts;
+        public ushort[] Indices;
+        public StudioMesh Mesh;
+
+        public override string ToString()
+        {
+            return $"StripGroup (Flags: {Flags})";
+        }
+    }
+
+    public class StudioMesh
+    {
+        public StudioMeshFlags Flags;
+        public StripGroup[] StripGroups;
+
+        public StudioModelLOD LOD;
+        public string[] MaterialNames;
+
+        public int SkinRefIndex;
+        public int ModelIndex;
+
+        public int NumVertices;
+        public int VertexOffset;
+
+        public int NumFlexes;
+        public int FlexIndex;
+
+        public int MaterialType;
+        public int MaterialParam;
+
+        public int MeshId;
+        public Vector3 Center;
+
+        public override string ToString()
+        {
+            return $"StudioMesh (Flags: {Flags})";
+        }
+    }
+
+    public class StudioModelLOD
     {
         public float SwitchPoint;
-        public List<StudioMesh> Meshes;
+        public StudioMesh[] Meshes;
+        public StudioModel Model;
+
+        public override string ToString()
+        {
+            return $"LOD (SwitchPoint: {SwitchPoint})";
+        }
+    }
+
+    public class StudioModel
+    {
+        public StudioModelLOD[] LODs;
+        public StudioBodyPart BodyPart;
+        
+        public string Name;
+        public float BoundingRadius;
 
         public int NumMeshes;
-        public int MeshOffset;
+        public int MeshIndex;
+
+        public int NumVertices;
+        public int VertexIndex;
+        public int TangentIndex;
+
+        public int NumAttachments;
+        public int AttachmentIndex;
+
+        public int NumEyeballs;
+        public int EyeballIndex;
+
+        public override string ToString()
+        {
+            return $"StudioModel ({Name})";
+        }
     }
 
-    public struct StudioModel
+    public class StudioBodyPart
     {
-        public int NumLODs;
-        public int LODOffset;
-        public List<StudioModelLOD> LODs;
+        public StudioModel[] Models;
+        public TriangleData Root;
+
+        public string Name;
+        public int Base;
+
+        public override string ToString()
+        {
+            return $"BodyPart ({Name})";
+        }
     }
 
-    public struct StudioBodyPart
+    public class TriangleData
     {
-        public int NumModels;
-        public int ModelOffset;
-        public List<StudioModel> Models;
-    }
-
-    public struct TriangleData
-    {
-        public readonly uint Version;
-        public readonly uint VertCacheSize;
+        public readonly int Version;
+        public readonly int VertCacheSize;
 
         public readonly ushort MaxBonesPerStrip;
         public readonly ushort MaxBonesPerTri;
-        public readonly uint MaxBonesPerVert;
+        public readonly int MaxBonesPerVert;
 
-        public readonly uint Checksum;
-        public readonly uint NumLODs;
+        public readonly int Checksum;
+        public readonly int NumLODs;
 
-        public readonly uint NumBodyParts;
-        public readonly uint BodyPartOffset;
-        public readonly List<StudioBodyPart> BodyParts;
+        public readonly int NumBodyParts;
+        public readonly int BodyPartOffset;
 
+        public readonly StudioBodyPart[] BodyParts;
         public readonly uint MaterialReplacementListOffset;
 
-        public TriangleData(string path, GameMount game = null)
+        public TriangleData(ModelHeader mdl, BinaryReader reader)
         {
-            using (var stream = GameMount.OpenRead(path, game))
-            using (var reader = new BinaryReader(stream))
-            {
-                Version = reader.ReadUInt32();
-                VertCacheSize = reader.ReadUInt32();
+            Version = reader.ReadInt32();
+            Debug.Assert(Version == 7, $"Unsupported VTX version: {Version} (expected 7!)");
 
-                MaxBonesPerStrip = reader.ReadUInt16();
-                MaxBonesPerTri = reader.ReadUInt16();
-                MaxBonesPerVert = reader.ReadUInt32();
+            VertCacheSize = reader.ReadInt32();
+            MaxBonesPerStrip = reader.ReadUInt16();
+            MaxBonesPerTri = reader.ReadUInt16();
+            MaxBonesPerVert = reader.ReadInt32();
 
-                Checksum = reader.ReadUInt32();
-                NumLODs = reader.ReadUInt32();
+            Checksum = reader.ReadInt32();
+            Debug.Assert(Checksum == mdl.Checksum, "VTX checksum didn't match MDL checksum!");
 
-                MaterialReplacementListOffset = reader.ReadUInt32();
+            NumLODs = reader.ReadInt32();
+            MaterialReplacementListOffset = reader.ReadUInt32();
 
-                NumBodyParts = reader.ReadUInt32();
-                BodyPartOffset = reader.ReadUInt32();
+            NumBodyParts = reader.ReadInt32();
+            Debug.Assert(NumBodyParts == mdl.BodyPartCount, "TriangleData.NumBodyParts != ModelHeader.BodyPartCount!");
 
-                BodyParts = new List<StudioBodyPart>();
-                stream.Position = BodyPartOffset;
-
-                for (int i = 0; i < NumBodyParts; i++)
-                {
-                    var bodyPart = new StudioBodyPart()
-                    {
-                        NumModels = reader.ReadInt32(),
-                        ModelOffset = reader.ReadInt32(),
-                        Models = new List<StudioModel>()
-                    };
-
-                    int modelIndex = (int)(BodyPartOffset + bodyPart.ModelOffset);
-                    stream.Position = modelIndex;
-
-                    for (int j = 0; j < bodyPart.NumModels; j++)
-                    {
-                        var model = new StudioModel()
-                        {
-                            NumLODs = reader.ReadInt32(),
-                            LODOffset = reader.ReadInt32(),
-                            LODs = new List<StudioModelLOD>()
-                        };
-
-                        var lodIndex = modelIndex + model.LODOffset;
-                        stream.Position = lodIndex;
-                        bodyPart.Models.Add(model);
-
-                        for (int lod = 0; lod < model.NumLODs; lod++)
-                        {
-                            var modelLOD = new StudioModelLOD()
-                            {
-                                NumMeshes = reader.ReadInt32(),
-                                MeshOffset = reader.ReadInt32(),
-                                SwitchPoint = reader.ReadSingle(),
-                                Meshes = new List<StudioMesh>()
-                            };
-
-                            int meshIndex = lodIndex + modelLOD.MeshOffset;
-                            stream.Position = meshIndex;
-                            model.LODs.Add(modelLOD);
-
-                            for (int m = 0; m < modelLOD.NumMeshes; m++)
-                            {
-                                var mesh = new StudioMesh()
-                                {
-                                    NumStripGroups = reader.ReadInt32(),
-                                    StripGroupOffset = reader.ReadInt32(),
-                                    StripGroups = new List<StripGroup>(),
-                                    Flags = reader.ReadByte()
-                                };
-
-                                int stripGroupIndex = meshIndex + mesh.StripGroupOffset;
-                                stream.Position = stripGroupIndex;
-                                modelLOD.Meshes.Add(mesh);
-
-                                for (int g = 0; g < mesh.NumStripGroups; g++)
-                                {
-                                    var stripGroup = new StripGroup()
-                                    {
-                                        NumVerts = reader.ReadInt32(),
-                                        VertOffset = reader.ReadInt32(),
-
-                                        NumIndices = reader.ReadInt32(),
-                                        IndexOffset = reader.ReadInt32(),
-
-                                        NumStrips = reader.ReadInt32(),
-                                        StripOffset = reader.ReadInt32(),
-
-                                        Flags = (StripFlags)reader.ReadByte()
-                                    };
-
-                                    int stripIndex = stripGroupIndex + stripGroup.StripOffset;
-                                    mesh.StripGroups.Add(stripGroup);
-                                    stream.Position = stripIndex;
-
-                                    stripGroupIndex += 0x19;
-                                    stream.Position = stripGroupIndex;
-                                }
-                            }
-
-                            lodIndex += 0x0C;
-                            stream.Position = lodIndex;
-                        }
-
-                        modelIndex += 0x08;
-                        stream.Position = modelIndex;
-                    }
-
-                    BodyParts.Add(bodyPart);
-                }
-            }
+            BodyPartOffset = reader.ReadInt32();
+            BodyParts = new StudioBodyPart[NumBodyParts];
         }
     }
 }

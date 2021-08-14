@@ -62,6 +62,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Models\Constants.cs" />
     <Compile Include="Models\TriangleData.cs" />
     <Compile Include="Models\VertexData.cs" />
     <Compile Include="World\BSPFile.cs" />
@@ -84,7 +85,7 @@
     <Compile Include="World\Types\Face.cs" />
     <Compile Include="World\Types\Plane.cs" />
     <Compile Include="Models\ModelFile.cs" />
-    <Compile Include="Models\StudioHDR.cs" />
+    <Compile Include="Models\ModelHeader.cs" />
     <Compile Include="Geometry\ObjMesher.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
