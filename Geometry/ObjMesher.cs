@@ -16,9 +16,10 @@ namespace Source2Roblox
 
         public static string BakeMDL(ModelFile model, int lod = 0)
         {
-            var allVerts = model.Vertices;
+            var vvd = model.GetVertexData(lod);
             var writer = new StringBuilder();
-            
+            var allVerts = vvd.Vertices;
+
             foreach (var vert in allVerts)
             {
                 var pos = vert.Position / 10f;
@@ -40,34 +41,33 @@ namespace Source2Roblox
                 .LODs[lod]
                 .Meshes;
 
-            var groups = meshes
-                .Select(mesh => mesh.StripGroups)
-                .Where(meshGroups => meshGroups.Any())
-                .Select(meshGroups => meshGroups.First())
-                .ToArray();
-
-            for (int g = 0; g < groups.Length; g++)
+            for (int m = 0; m < meshes.Length; m++)
             {
-                var group = groups[g];
-                
-                var verts = group.Verts;
-                var indices = group.Indices;
+                var mesh = meshes[m];
+                var groups = mesh.StripGroups;
 
-                writer.AppendLine($"g group_{g}");
-                writer.AppendLine($" usemtl test_{g}");
+                if (!groups.Any())
+                    continue;
+
+                var verts = groups
+                    .SelectMany(group => group.Verts)
+                    .ToArray();
+
+                var indices = mesh.Indices;
+
+                writer.AppendLine($"g group_{m}");
+                writer.AppendLine($" usemtl test_{m}");
 
                 for (int i = 0; i < indices.Length; i += 3)
                 {
                     writer.Append("  f");
 
-                    for (int j = 0; j < 3; j++)
+                    for (int j = 2; j >= 0; j--)
                     {
                         int index = indices[i + j];
-                        StripVertex stripVert = verts[index];
+                        var vert = verts[index];
 
-                        int vvdVertIndex = stripVert.Index;
-                        int face = 1 + vvdVertIndex;
-
+                        int face = 1 + vert.Index;
                         writer.Append($" {face}/{face}/{face}");
                     }
 

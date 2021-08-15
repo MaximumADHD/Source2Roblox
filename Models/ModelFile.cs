@@ -1,5 +1,6 @@
 ﻿using Source2Roblox.FileSystem;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -133,6 +134,8 @@ namespace Source2Roblox.Models
                         int mdlMeshPos = mdlDataPos + model.MeshIndex;
                         mdlStream.Position = mdlMeshPos;
 
+                        var vvdLod = new VertexData(vvd, LOD);
+
                         for (int MESH = 0; MESH < vtxNumMeshes; MESH++)
                         {
                             int numGroups = vtxReader.ReadInt32(),
@@ -164,6 +167,7 @@ namespace Source2Roblox.Models
                             int groupPos = vtxMeshPos + groupOffset,
                                 meshIndexBase = 0;
 
+                            var indices = new List<ushort>();
                             vtxStream.Position = groupPos;
 
                             for (int GROUP = 0; GROUP < numGroups; GROUP++)
@@ -176,16 +180,15 @@ namespace Source2Roblox.Models
 
                                 vtxReader.Skip(8);
 
+                                if (mdl.Version >= 49)
+                                    vtxReader.Skip(8);
+
                                 var group = new StripGroup()
                                 {
                                     Flags = (StripGroupFlags)vtxReader.ReadByte(),
                                     Verts = new StripVertex[numVerts],
-                                    Indices = new ushort[numIndices],
                                     Mesh = mesh
                                 };
-
-                                if ((group.Flags & StripGroupFlags.IsHardwareSkinned) == StripGroupFlags.None)
-                                    continue;
 
                                 // Read Verts
                                 vtxStream.Position = groupPos + vertOffset;
@@ -195,14 +198,11 @@ namespace Source2Roblox.Models
                                     var boneWeightIndex = vtxReader.ReadBytes(3);
                                     var numBones = vtxReader.ReadByte();
 
-                                    var vertId = vtxReader.ReadUInt16();
+                                    var lodVertId = vtxReader.ReadUInt16();
                                     var boneIds = vtxReader.ReadBytes(3);
 
-                                    var mdlVertIndex = mesh.VertexOffset + vertId;
-                                    var vvdVertIndex = vvd.FixupSearch(mdlVertIndex);
-
-                                    var vvdVertex = vvd.Vertices[vvdVertIndex];
-                                    var vvdTangent = vvd.Tangents[vvdVertIndex];
+                                    var vvdVertex = vvdLod.Vertices[lodVertId];
+                                    var vvdTangent = vvdLod.Tangents[lodVertId];
 
                                     // Tangent sanity check.
                                     Debug.Assert(vvdTangent.W == 0 || Math.Abs(vvdTangent.W) == 1);
@@ -223,7 +223,7 @@ namespace Source2Roblox.Models
                                     group.Verts[VERT] = new StripVertex()
                                     {
                                         BoneWeights = boneWeights,
-                                        Index = vvdVertIndex,
+                                        Index = lodVertId,
 
                                         BoneIds = boneIds,
                                         Group = group,
@@ -236,7 +236,7 @@ namespace Source2Roblox.Models
                                 for (int INDEX = 0; INDEX < numIndices; INDEX++)
                                 {
                                     int index = meshIndexBase + vtxReader.ReadUInt16();
-                                    group.Indices[INDEX] = (ushort)index;
+                                    indices.Add((ushort)index);
                                 }
 
                                 groupPos += 0x19;
@@ -253,6 +253,7 @@ namespace Source2Roblox.Models
                             vtxStream.Position = vtxMeshPos;
 
                             lod.Meshes[MESH] = mesh;
+                            mesh.Indices = indices.ToArray();
                         }
 
                         lodPos += 0x0C;
@@ -288,6 +289,11 @@ namespace Source2Roblox.Models
 
             vtxStream.Dispose();
             vtxReader.Dispose();
+        }
+
+        public VertexData GetVertexData(int lod = 0)
+        {
+            return new VertexData(VertexData, lod);
         }
 
         public StripGroup[] GetStripGroups(int lod = 0, int model = 0, int group = 0, int bodyPart = 0)

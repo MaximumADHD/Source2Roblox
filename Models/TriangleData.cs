@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using RobloxFiles.DataTypes;
-using Source2Roblox.FileSystem;
 
 namespace Source2Roblox.Models
 {
@@ -56,7 +54,6 @@ namespace Source2Roblox.Models
     {
         public StripGroupFlags Flags;
         public StripVertex[] Verts;
-        public ushort[] Indices;
         public StudioMesh Mesh;
 
         public override string ToString()
@@ -69,6 +66,7 @@ namespace Source2Roblox.Models
     {
         public StudioMeshFlags Flags;
         public StripGroup[] StripGroups;
+        public ushort[] Indices;
 
         public StudioModelLOD LOD;
         public string[] MaterialNames;
