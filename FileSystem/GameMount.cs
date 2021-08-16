@@ -117,5 +117,15 @@ namespace Source2Roblox.FileSystem
 
             return File.OpenRead(path);
         }
+
+        public static bool HasFile(string path, GameMount game = null)
+        {
+            game = game ?? Program.GameMount;
+
+            if (game != null)
+                return game.HasFile(path);
+
+            return File.Exists(path);
+        }
     }
 }

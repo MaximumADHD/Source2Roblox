@@ -58,6 +58,12 @@ namespace Source2Roblox.Textures
         EnvMap = 0x4000,
     }
 
+    public enum VTFResourceType
+    {
+        ThumbOffset,
+        ImageOffset = 30
+    }
+
     public class VTFFile
     {
         public readonly IReadOnlyList<VTFSlices> Frames;
@@ -237,7 +243,7 @@ namespace Source2Roblox.Textures
             string header = reader.ReadString(4);
             var stream = reader.BaseStream;
 
-            if (header != "VTF\0")
+            if (header != "VTF")
                 throw new InvalidDataException("Not a VTF file!");
 
             VersionMajor = reader.ReadUInt32();
@@ -270,20 +276,35 @@ namespace Source2Roblox.Textures
             LowResImageWidth = reader.ReadByte();
             LowResImageHeight = reader.ReadByte();
 
-            reader.Skip(1);
             Depth = 1;
             
             if (VersionMinor >= 2)
-            {
-                Depth = Math.Max(reader.ReadUInt16(), (ushort)1);
-                stream.Position = 0x44;
-            }
+                Depth = reader.ReadUInt16();
+
+            uint numResources = 0;
+            uint thumbOffset = HeaderSize;
 
             if (VersionMinor >= 3)
             {
-                uint numResources = reader.ReadUInt32();
-                stream.Position = 0x50 + (numResources * 8);
+                reader.Skip(3);
+                numResources = reader.ReadUInt32();
+                reader.Skip(8);
             }
+
+            for (int i = 0; i < numResources; i++)
+            {
+                uint type = reader.ReadUInt32(),
+                     value = reader.ReadUInt32();
+
+                // TODO: Handle more resource types?
+
+                if (type != 1)
+                    continue;
+
+                thumbOffset = value;
+            }
+
+            stream.Position = thumbOffset;
 
             if (LowResImageFormat != VTFImageFormat.NONE)
             {
@@ -330,8 +351,6 @@ namespace Source2Roblox.Textures
             {
                 int mipWidth = Math.Max(Width >> i, 1);
                 int mipHeight = Math.Max(Height >> i, 1);
-
-                Console.WriteLine($"Reading Mipmap {mipWidth}x{mipHeight}");
 
                 for (int j = 0; j < NumFrames; j++)
                 {

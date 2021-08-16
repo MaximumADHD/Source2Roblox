@@ -1,17 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 
-using Source2Roblox.World;
 using Source2Roblox.FileSystem;
 using Source2Roblox.Models;
-using System.IO;
+using Source2Roblox.Textures;
+using Source2Roblox.World;
 
 namespace Source2Roblox
 {
     class Program
     {
-        private static Dictionary<string, string> argMap = new Dictionary<string, string>();
+        private static readonly Dictionary<string, string> argMap = new Dictionary<string, string>();
         public static GameMount GameMount { get; private set; }
         
         public static string GetArg(string argName)
@@ -50,18 +51,62 @@ namespace Source2Roblox
             string model   = GetArg("-model");
             string gameDir = GetArg("-game");
             string mapName = GetArg("-map");
+            string vtfName = GetArg("-vtf");
             
             if (gameDir == null)
                 return;
 
-            Console.WriteLine($"Loading game mount: {gameDir}...");
+            Console.Write($"Loading game mount: {gameDir}... ");
             GameMount = new GameMount(gameDir);
 
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             Console.WriteLine("Ready!");
+
+            if (vtfName != null)
+            {
+                var info = new FileInfo(vtfName);
+                string name = info.Name.Replace(".vtf", "");
+
+                string dir = Path.Combine(desktop, "ExamineVTF", name);
+                Directory.CreateDirectory(dir);
+
+                using (var stream = GameMount.OpenRead(vtfName))
+                using (var reader = new BinaryReader(stream))
+                {
+                    var file = new VTFFile(reader, true);
+
+                    for (int i = 0; i < file.NumFrames; i++)
+                    {
+                        var frame = file.Frames[i];
+
+                        for (int j = 0; j < frame.Count; j++)
+                        {
+                            var mipmap = frame[j];
+
+                            for (int k = 0; k < mipmap.Count; k++)
+                            {
+                                var image = mipmap[k];
+                                string savePath = Path.Combine(dir, $"{name}_{i}_{j}_{k}.png");
+                                image.Save(savePath);
+                            }
+                        }
+                    }
+
+                    var lowRes = file.LowResImage;
+
+                    if (lowRes != null)
+                    {
+                        string lowResPath = Path.Combine(dir, $"{name}_LOW_RES.png");
+                        lowRes.Save(lowResPath);
+                    }
+                }
+            }
 
             if (model != null)
             {
                 bool running = true;
+                string exportDir = Path.Combine(desktop, "SourceModels");
+                Directory.CreateDirectory(exportDir);
 
                 while (running)
                 {
@@ -75,27 +120,18 @@ namespace Source2Roblox
                     }
                     else
                     {
-                        Console.WriteLine("Enter a model path:");
+                        Console.Write("Enter a model path: ");
                         path = Console.ReadLine();
                     }
 
-                    try
-                    {
-                        var mdl = new ModelFile(path);
-                        string obj = ObjMesher.BakeMDL(mdl);
+                    var mdl = new ModelFile(path);
+                    var info = new FileInfo(mdl.Name);
 
-                        var info = new FileInfo(mdl.Name);
-                        string name = info.Name.Replace(info.Extension, "");
-
-                        string export = Path.Combine(@"C:\Users\clone\Desktop", $"{name}.obj");
-                        File.WriteAllText(export, obj);
-
-                        Console.WriteLine($"Wrote {export}");
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"An error occurred: {e.Message}");
-                    }
+                    string name = info.Name.Replace(info.Extension, "");
+                    string exportTo = Path.Combine(exportDir, name);
+                        
+                    ObjMesher.BakeMDL(mdl, exportTo);
+                    Console.WriteLine($"\tWrote files to {exportTo}!");
                 }
                 
             }

@@ -107,6 +107,10 @@
       <Project>{cf50c0e2-23a7-4dc1-b4b2-e60cde716253}</Project>
       <Name>RobloxFileFormat</Name>
     </ProjectReference>
+    <ProjectReference Include="..\ValveKeyValue\ValveKeyValue\ValveKeyValue\ValveKeyValue.csproj">
+      <Project>{afcd332e-5827-4a52-8890-5984fed828c4}</Project>
+      <Name>ValveKeyValue</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.7.2">

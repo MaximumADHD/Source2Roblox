@@ -95,8 +95,8 @@ namespace Source2Roblox.Models
         public StudioMeshFlags Flags;
         public StripGroup[] StripGroups;
 
-        public StudioModelLOD LOD;
-        public string[] MaterialNames;
+        public StudioLOD LOD;
+        public string[] Materials;
 
         public int SkinRefIndex;
         public int ModelIndex;
@@ -119,7 +119,7 @@ namespace Source2Roblox.Models
         }
     }
 
-    public class StudioModelLOD
+    public class StudioLOD
     {
         public float SwitchPoint;
         public StudioMesh[] Meshes;
@@ -133,7 +133,7 @@ namespace Source2Roblox.Models
 
     public class StudioModel
     {
-        public StudioModelLOD[] LODs;
+        public StudioLOD[] LODs;
         public StudioBodyPart BodyPart;
         
         public string Name;
@@ -188,7 +188,7 @@ namespace Source2Roblox.Models
         public readonly int BodyPartOffset;
 
         public readonly StudioBodyPart[] BodyParts;
-        public readonly uint MaterialReplacementListOffset;
+        public readonly int MaterialReplacementListOffset;
 
         public TriangleData(ModelHeader mdl, BinaryReader reader)
         {
@@ -204,7 +204,7 @@ namespace Source2Roblox.Models
             Debug.Assert(Checksum == mdl.Checksum, "VTX checksum didn't match MDL checksum!");
 
             NumLODs = reader.ReadInt32();
-            MaterialReplacementListOffset = reader.ReadUInt32();
+            MaterialReplacementListOffset = reader.ReadInt32();
 
             NumBodyParts = reader.ReadInt32();
             Debug.Assert(NumBodyParts == mdl.BodyPartCount, "TriangleData.NumBodyParts != ModelHeader.BodyPartCount!");

@@ -36,6 +36,10 @@ namespace Source2Roblox.FileSystem
 
         public bool HasFile(string path)
         {
+            path = path
+                .ToLowerInvariant()
+                .Replace('\\', '/');
+
             if (binaries.Keys.Contains(path))
                 return true;
 
@@ -47,6 +51,8 @@ namespace Source2Roblox.FileSystem
 
         public MemoryStream OpenRead(string path)
         {
+            path = path.ToLowerInvariant();
+
             if (!binaries.TryGetValue(path, out byte[] buffer))
             {
                 if (!Root.Entries.TryGetValue(path, out VPKEntry entry))

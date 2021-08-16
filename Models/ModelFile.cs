@@ -11,8 +11,11 @@ namespace Source2Roblox.Models
     // Special thanks for their research into this spec!
     // https://github.com/magcius/noclip.website/blob/master/src/SourceEngine/Studio.ts
 
-    public class MaterialBatch
+    public class MeshBuffer
     {
+        public string BodyPart;
+        public string MaterialPath;
+
         public int NumVerts => Vertices.Count;
         public List<StudioVertex> Vertices;
 
@@ -22,9 +25,11 @@ namespace Source2Roblox.Models
 
     public class ModelFile
     {
+        public readonly GameMount Game;
         public readonly ModelHeader Header;
         public readonly VertexData VertexData;
         public readonly TriangleData TriangleData;
+        public readonly IReadOnlyList<string> Materials;
 
         public string Name => Header.Name;
         public ModelFlags Flags => Header.Flags;
@@ -55,6 +60,116 @@ namespace Source2Roblox.Models
             var mdl = new ModelHeader(mdlReader);
             var vtx = new TriangleData(mdl, vtxReader);
             var vvd = new VertexData(mdl, vvdPath, game);
+
+            int numTextures = mdl.TextureCount;
+            var textureIndex = mdl.TextureIndex;
+
+            int numTextureDirs = mdl.TextureDirCount;
+            int textureDirIndex = mdl.TextureDirIndex;
+
+            var materialDirs = new List<string>();
+            mdlStream.Position = textureDirIndex;
+
+            for (int i = 0; i < numTextureDirs; i++)
+            {
+                int dirIndex = mdlReader.ReadInt32();
+
+                long restore = mdlStream.Position;
+                mdlStream.Position = dirIndex;
+
+                string textureDir = mdlReader.ReadString(null);
+                string materialDir = Path.Combine("materials", textureDir);
+
+                materialDirs.Add(materialDir);
+                mdlStream.Position = restore;
+            }
+
+            var materialPaths = new List<string>();
+            mdlStream.Position = textureIndex;
+
+            for (int i = 0; i < numTextures; i++)
+            {
+                int nameIndex = mdlReader.ReadInt32();
+                mdlStream.Position += (nameIndex - 4);
+
+                string name = mdlReader.ReadString(null);
+                textureIndex += 0x40;
+
+                foreach (string dir in materialDirs)
+                {
+                    string mtlPath = (dir + name + ".vmt")
+                        .ToLowerInvariant()
+                        .Replace('\\', '/');
+
+                    if (GameMount.HasFile(path, game))
+                    {
+                        materialPaths.Add(mtlPath);
+                        break;
+                    }
+                }
+
+                mdlStream.Position = textureIndex;
+            }
+
+            int numSkinRef = mdl.SkinReferenceCount;
+            int numSkinFamilies = mdl.SkinFamilyCount;
+
+            int skinIndex = mdl.SkinRefIndex;
+            var skinArray = new List<ushort>();
+
+            int skinArraySize = numSkinRef * numSkinFamilies;
+            mdlStream.Position = skinIndex;
+
+            for (int i = 0; i < skinArraySize; i++)
+            {
+                ushort value = mdlReader.ReadUInt16();
+                skinArray.Add(value);
+            }
+
+            int vtxNumLODs = vtx.NumLODs;
+            var lodMaterialPaths = new string[vtxNumLODs][];
+
+            int vtxReplaceIndex = vtx.MaterialReplacementListOffset;
+            vtxStream.Position = vtxReplaceIndex;
+
+            for (int i = 0; i < vtxNumLODs; i++)
+            {
+                int numReplaces = vtxReader.ReadInt32(),
+                    replaceOffset = vtxReader.ReadInt32(),
+                    replaceIndex = vtxReplaceIndex + replaceOffset;
+
+                string[] lodMaterials = materialPaths.ToArray();
+                vtxStream.Position = replaceIndex;
+
+                for (int j = 0; j < numReplaces; j++)
+                {
+                    var materialId = vtxReader.ReadUInt16();
+                    Debug.Assert(materialId < materialPaths.Count);
+
+                    int nameOffset = vtxReader.ReadInt32();
+                    vtxStream.Position += (nameOffset - 6);
+
+                    string newName = vtxReader.ReadString(null) + ".vmt";
+                    string oldPath = lodMaterials[j];
+
+                    var oldInfo = new FileInfo(oldPath);
+                    var oldName = oldInfo.Name;
+
+                    string newPath = oldPath.Replace(oldName, newName);
+
+                    if (GameMount.HasFile(newPath, game))
+                        lodMaterials[materialId] = newPath;
+                    else
+                        Console.WriteLine($"\tMissing replacement material {oldName}->{newName}?");
+
+                    replaceIndex += 0x06;
+                    vtxStream.Position = replaceIndex;
+                }
+
+                vtxReplaceIndex += 0x08;
+                vtxStream.Position = vtxReplaceIndex;
+                lodMaterialPaths[i] = lodMaterials;
+            }
 
             int numBodyParts = vtx.NumBodyParts;
             var bodyParts = vtx.BodyParts;
@@ -119,7 +234,7 @@ namespace Source2Roblox.Models
                         NumEyeballs = mdlReader.ReadInt32(),
                         EyeballIndex = mdlReader.ReadInt32(),
 
-                        LODs = new StudioModelLOD[numLODs],
+                        LODs = new StudioLOD[numLODs],
                         BodyPart = bodyPart
                     };
                     
@@ -131,7 +246,7 @@ namespace Source2Roblox.Models
                         int vtxNumMeshes = vtxReader.ReadInt32(),
                             vtxMeshOffset = vtxReader.ReadInt32();
 
-                        var lod = new StudioModelLOD()
+                        var lod = new StudioLOD()
                         {
                             SwitchPoint = vtxReader.ReadSingle(),
                             Meshes = new StudioMesh[vtxNumMeshes],
@@ -144,19 +259,26 @@ namespace Source2Roblox.Models
                         int mdlMeshPos = mdlDataPos + model.MeshIndex;
                         mdlStream.Position = mdlMeshPos;
 
-                        var vvdLod = new VertexData(vvd, LOD);
-
                         for (int MESH = 0; MESH < vtxNumMeshes; MESH++)
                         {
                             int numGroups = vtxReader.ReadInt32(),
-                                groupOffset = vtxReader.ReadInt32();
+                                groupOffset = vtxReader.ReadInt32(),
+                                skinRefIndex = mdlReader.ReadInt32();
+
+                            var matPaths = new string[numSkinFamilies];
+
+                            for (int i = 0; i < numSkinFamilies; i++)
+                            {
+                                int matIndex = skinArray[i * numSkinRef + skinRefIndex];
+                                matPaths[i] = lodMaterialPaths[LOD][matIndex];
+                            }
 
                             var mesh = new StudioMesh()
                             {
                                 Flags = (StudioMeshFlags)vtxReader.ReadByte(),
                                 StripGroups = new StripGroup[numGroups],
 
-                                SkinRefIndex = mdlReader.ReadInt32(),
+                                SkinRefIndex = skinRefIndex,
                                 ModelIndex = mdlReader.ReadInt32(),
 
                                 NumVertices = mdlReader.ReadInt32(),
@@ -171,6 +293,7 @@ namespace Source2Roblox.Models
                                 MeshId = mdlReader.ReadInt32(),
                                 Center = mdlReader.ReadVector3(),
 
+                                Materials = matPaths,
                                 LOD = lod
                             };
 
@@ -304,9 +427,11 @@ namespace Source2Roblox.Models
                 bodyParts[BODY_PART] = bodyPart;
             }
 
+            Game = game;
             Header = mdl;
             VertexData = vvd;
             TriangleData = vtx;
+            Materials = materialPaths;
 
             mdlStream.Dispose();
             mdlReader.Dispose();
@@ -315,34 +440,36 @@ namespace Source2Roblox.Models
             vtxReader.Dispose();
         }
 
-        public List<MaterialBatch> GetTriangles(int lod = 0, int subModel = 0, int bodyPart = 0)
+        public List<MeshBuffer> GetMeshes(int lodId = 0, int skinId = 0, int modelId = 0, int bodyPartId = 0)
         {
-            StudioModel model = TriangleData
-                .BodyParts[bodyPart]
-                .Models[subModel];
+            StudioBodyPart bodyPart = TriangleData.BodyParts[bodyPartId];
+            StudioModel model = bodyPart.Models[modelId];
 
-            StudioMesh[] meshes = model
-                .LODs[lod]
-                .Meshes;
+            StudioLOD lod = model.LODs[lodId];
+            StudioMesh[] meshes = lod.Meshes;
             
-            var lodData = new VertexData(VertexData, lod);
+            var lodData = new VertexData(VertexData, lodId);
             var modelData = new ModelVertexData(model, lodData);
-            var materialBatches = new List<MaterialBatch>();
+            var meshBuffers = new List<MeshBuffer>();
 
             foreach (var mesh in meshes)
             {
                 var meshData = new MeshVertexData(mesh, modelData);
+                var matPath = mesh.Materials[skinId];
 
-                var materialBatch = new MaterialBatch()
+                var meshBuffer = new MeshBuffer()
                 {
-                    Vertices = new List<StudioVertex>(),
-                    Indices = new List<ushort>()
+                    BodyPart = bodyPart.Name,
+                    MaterialPath = matPath,
+
+                    Indices = new List<ushort>(),
+                    Vertices = new List<StudioVertex>()
                 };
 
                 for (int vertId = 0; vertId < mesh.NumVertices; vertId++)
                 {
                     var vertex = meshData.GetVertex(vertId);
-                    materialBatch.Vertices.Add(vertex);
+                    meshBuffer.Vertices.Add(vertex);
                 }
 
                 foreach (var group in mesh.StripGroups)
@@ -350,7 +477,7 @@ namespace Source2Roblox.Models
                     foreach (var strip in group.Strips)
                     {
                         var flags = strip.Flags;
-
+                        
                         if ((flags & StripFlags.IsTriList) != StripFlags.None)
                         {
                             for (int i = 0; i < strip.NumIndices; i += 3)
@@ -360,7 +487,7 @@ namespace Source2Roblox.Models
                                 for (int j = 0; j < 3; j++)
                                 {
                                     var meshIndex = group.GetMeshIndex(index + j);
-                                    materialBatch.Indices.Add(meshIndex);
+                                    meshBuffer.Indices.Add(meshIndex);
                                 }
                             }
                         }
@@ -373,23 +500,21 @@ namespace Source2Roblox.Models
                                 int index = strip.IndexOffset + i;
                                 int ccw = 1 - (i & 1);
 
-                                var indices = new ushort[3]
+                                meshBuffer.Indices.AddRange(new ushort[3]
                                 {
                                     group.GetMeshIndex(index),
                                     group.GetMeshIndex(index + 1 + ccw),
-                                    group.GetMeshIndex(index + 2 - ccw)
-                                };
-
-                                materialBatch.Indices.AddRange(indices);
+                                    group.GetMeshIndex(index + 2 - ccw),
+                                });
                             }
                         }
                     }
                 }
 
-                materialBatches.Add(materialBatch);
+                meshBuffers.Add(meshBuffer);
             }
 
-            return materialBatches;
+            return meshBuffers;
         }
     }
 }

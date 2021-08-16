@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Source2Roblox", "Source2Rob
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RobloxFileFormat", "..\Roblox-File-Format\RobloxFileFormat.csproj", "{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Include", "Include", "{D5ABAE2D-2F3C-446D-AC5A-027A0AB1A8A0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ValveKeyValue", "..\ValveKeyValue\ValveKeyValue\ValveKeyValue\ValveKeyValue.csproj", "{AFCD332E-5827-4A52-8890-5984FED828C4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,9 +25,17 @@ Global
 		{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AFCD332E-5827-4A52-8890-5984FED828C4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AFCD332E-5827-4A52-8890-5984FED828C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AFCD332E-5827-4A52-8890-5984FED828C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AFCD332E-5827-4A52-8890-5984FED828C4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{CF50C0E2-23A7-4DC1-B4B2-E60CDE716253} = {D5ABAE2D-2F3C-446D-AC5A-027A0AB1A8A0}
+		{AFCD332E-5827-4A52-8890-5984FED828C4} = {D5ABAE2D-2F3C-446D-AC5A-027A0AB1A8A0}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {047FB489-1E74-48DB-BE53-F787511E0214}

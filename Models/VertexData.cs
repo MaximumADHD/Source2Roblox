@@ -1,6 +1,5 @@
 ﻿using RobloxFiles.DataTypes;
 using Source2Roblox.FileSystem;
-using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -104,7 +103,7 @@ namespace Source2Roblox.Models
 
         public VertexData(ModelHeader mdl, string path, GameMount game = null)
         {
-            using (var stream = GameMount.OpenRead(path))
+            using (var stream = GameMount.OpenRead(path, game))
             using (var reader = new BinaryReader(stream))
             {
                 ID = reader.ReadString(4);
