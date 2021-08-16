@@ -54,20 +54,50 @@ namespace Source2Roblox
             if (gameDir == null)
                 return;
 
+            Console.WriteLine($"Loading game mount: {gameDir}...");
             GameMount = new GameMount(gameDir);
+
+            Console.WriteLine("Ready!");
 
             if (model != null)
             {
-                var mdl = new ModelFile(model);
-                string obj = ObjMesher.BakeMDL(mdl);
+                bool running = true;
 
-                var info = new FileInfo(model);
-                string name = info.Name;
+                while (running)
+                {
+                    string path;
 
-                string path = Path.Combine(@"C:\Users\clone\Desktop", $"{name}.obj");
-                File.WriteAllText(path, obj);
+                    if (!string.IsNullOrEmpty(model))
+                    {
+                        path = model;
+                        running = false;
+                        Console.WriteLine($"Processing -model: {model}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Enter a model path:");
+                        path = Console.ReadLine();
+                    }
 
-                Debugger.Break();
+                    try
+                    {
+                        var mdl = new ModelFile(path);
+                        string obj = ObjMesher.BakeMDL(mdl);
+
+                        var info = new FileInfo(mdl.Name);
+                        string name = info.Name.Replace(info.Extension, "");
+
+                        string export = Path.Combine(@"C:\Users\clone\Desktop", $"{name}.obj");
+                        File.WriteAllText(export, obj);
+
+                        Console.WriteLine($"Wrote {export}");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"An error occurred: {e.Message}");
+                    }
+                }
+                
             }
 
             if (mapName != null)

@@ -11,6 +11,15 @@ namespace Source2Roblox.Models
     // Special thanks for their research into this spec!
     // https://github.com/magcius/noclip.website/blob/master/src/SourceEngine/Studio.ts
 
+    public class MaterialBatch
+    {
+        public int NumVerts => Vertices.Count;
+        public List<StudioVertex> Vertices;
+
+        public int NumIndices => Indices.Count;
+        public List<ushort> Indices;
+    }
+
     public class ModelFile
     {
         public readonly ModelHeader Header;
@@ -19,6 +28,7 @@ namespace Source2Roblox.Models
 
         public string Name => Header.Name;
         public ModelFlags Flags => Header.Flags;
+        public int BodyPartCount => Header.BodyPartCount;
 
         public StudioVertex[] Vertices => VertexData.Vertices;
         public StudioBodyPart[] BodyParts => TriangleData.BodyParts;
@@ -164,10 +174,7 @@ namespace Source2Roblox.Models
                                 LOD = lod
                             };
 
-                            int groupPos = vtxMeshPos + groupOffset,
-                                meshIndexBase = 0;
-
-                            var indices = new List<ushort>();
+                            int groupPos = vtxMeshPos + groupOffset;
                             vtxStream.Position = groupPos;
 
                             for (int GROUP = 0; GROUP < numGroups; GROUP++)
@@ -176,9 +183,10 @@ namespace Source2Roblox.Models
                                     vertOffset = vtxReader.ReadInt32(),
 
                                     numIndices = vtxReader.ReadInt32(),
-                                    indexOffset = vtxReader.ReadInt32();
+                                    indexOffset = vtxReader.ReadInt32(),
 
-                                vtxReader.Skip(8);
+                                    numStrips = vtxReader.ReadInt32(),
+                                    stripOffset = vtxReader.ReadInt32();
 
                                 if (mdl.Version >= 49)
                                     vtxReader.Skip(8);
@@ -186,7 +194,11 @@ namespace Source2Roblox.Models
                                 var group = new StripGroup()
                                 {
                                     Flags = (StripGroupFlags)vtxReader.ReadByte(),
-                                    Verts = new StripVertex[numVerts],
+
+                                    Indices = new ushort[numIndices],
+                                    Vertices = new Vertex[numVerts],
+                                    Strips = new Strip[numStrips],
+
                                     Mesh = mesh
                                 };
 
@@ -195,37 +207,14 @@ namespace Source2Roblox.Models
 
                                 for (int VERT = 0; VERT < numVerts; VERT++)
                                 {
-                                    var boneWeightIndex = vtxReader.ReadBytes(3);
-                                    var numBones = vtxReader.ReadByte();
-
-                                    var lodVertId = vtxReader.ReadUInt16();
-                                    var boneIds = vtxReader.ReadBytes(3);
-
-                                    var vvdVertex = vvdLod.Vertices[lodVertId];
-                                    var vvdTangent = vvdLod.Tangents[lodVertId];
-
-                                    // Tangent sanity check.
-                                    Debug.Assert(vvdTangent.W == 0 || Math.Abs(vvdTangent.W) == 1);
-
-                                    var boneWeights = new float[4];
-                                    var totalBoneWeight = 0.0f;
-
-                                    for (int i = 0; i < numBones; i++)
+                                    group.Vertices[VERT] = new Vertex()
                                     {
-                                        var index = boneWeightIndex[i];
-                                        boneWeights[i] = vvdVertex.Weights[index];
-                                        totalBoneWeight += boneWeights[i];
-                                    }
+                                        BoneWeightIndex  = vtxReader.ReadBytes(3),
+                                        NumBones = vtxReader.ReadByte(),
 
-                                    for (int i = 0; i < numBones; i++)
-                                        boneWeights[i] /= totalBoneWeight;
+                                        OrigMeshVertId = vtxReader.ReadUInt16(),
+                                        BoneIds = vtxReader.ReadBytes(3),
 
-                                    group.Verts[VERT] = new StripVertex()
-                                    {
-                                        BoneWeights = boneWeights,
-                                        Index = lodVertId,
-
-                                        BoneIds = boneIds,
                                         Group = group,
                                     };
                                 }
@@ -234,15 +223,51 @@ namespace Source2Roblox.Models
                                 vtxStream.Position = groupPos + indexOffset;
 
                                 for (int INDEX = 0; INDEX < numIndices; INDEX++)
+                                    group.Indices[INDEX] = vtxReader.ReadUInt16();
+
+                                // Read Strips
+                                var stripPos = groupPos + stripOffset;
+                                vtxStream.Position = stripPos;
+
+                                for (int STRIP = 0; STRIP < numStrips; STRIP++)
                                 {
-                                    int index = meshIndexBase + vtxReader.ReadUInt16();
-                                    indices.Add((ushort)index);
+                                    var strip = new Strip()
+                                    {
+                                        NumIndices = vtxReader.ReadInt32(),
+                                        IndexOffset = vtxReader.ReadInt32(),
+
+                                        NumVerts = vtxReader.ReadInt32(),
+                                        VertOffset = vtxReader.ReadInt32(),
+
+                                        NumBones = vtxReader.ReadInt16(),
+                                        Flags = (StripFlags)vtxReader.ReadByte(),
+                                    };
+
+                                    int numBoneStateChanges = vtxReader.ReadInt32(),
+                                        boneStateChangeOffset = vtxReader.ReadInt32();
+
+                                    var boneStateChanges = new BoneStateChange[numBoneStateChanges];
+                                    vtxStream.Position = stripPos + boneStateChangeOffset;
+                                    strip.BoneStateChanges = boneStateChanges;
+
+                                    for (int CHANGE = 0; CHANGE < numBoneStateChanges; CHANGE++)
+                                    {
+                                        boneStateChanges[CHANGE] = new BoneStateChange()
+                                        {
+                                            HardwareId = vtxReader.ReadInt32(),
+                                            NewBoneId = vtxReader.ReadInt32()
+                                        };
+                                    }
+
+                                    stripPos += 0x1B;
+                                    vtxStream.Position = stripPos;
+
+                                    group.Strips[STRIP] = strip;
                                 }
 
                                 groupPos += 0x19;
-                                meshIndexBase += numVerts;
-
                                 vtxStream.Position = groupPos;
+
                                 mesh.StripGroups[GROUP] = group;
                             }
 
@@ -253,7 +278,6 @@ namespace Source2Roblox.Models
                             vtxStream.Position = vtxMeshPos;
 
                             lod.Meshes[MESH] = mesh;
-                            mesh.Indices = indices.ToArray();
                         }
 
                         lodPos += 0x0C;
@@ -291,24 +315,81 @@ namespace Source2Roblox.Models
             vtxReader.Dispose();
         }
 
-        public VertexData GetVertexData(int lod = 0)
+        public List<MaterialBatch> GetTriangles(int lod = 0, int subModel = 0, int bodyPart = 0)
         {
-            return new VertexData(VertexData, lod);
-        }
-
-        public StripGroup[] GetStripGroups(int lod = 0, int model = 0, int group = 0, int bodyPart = 0)
-        {
-            var meshes = TriangleData
+            StudioModel model = TriangleData
                 .BodyParts[bodyPart]
-                .Models[model]
+                .Models[subModel];
+
+            StudioMesh[] meshes = model
                 .LODs[lod]
                 .Meshes;
+            
+            var lodData = new VertexData(VertexData, lod);
+            var modelData = new ModelVertexData(model, lodData);
+            var materialBatches = new List<MaterialBatch>();
 
-            var groups = meshes
-                .Select(vmesh => vmesh.StripGroups[group])
-                .ToArray();
+            foreach (var mesh in meshes)
+            {
+                var meshData = new MeshVertexData(mesh, modelData);
 
-            return groups;
+                var materialBatch = new MaterialBatch()
+                {
+                    Vertices = new List<StudioVertex>(),
+                    Indices = new List<ushort>()
+                };
+
+                for (int vertId = 0; vertId < mesh.NumVertices; vertId++)
+                {
+                    var vertex = meshData.GetVertex(vertId);
+                    materialBatch.Vertices.Add(vertex);
+                }
+
+                foreach (var group in mesh.StripGroups)
+                {
+                    foreach (var strip in group.Strips)
+                    {
+                        var flags = strip.Flags;
+
+                        if ((flags & StripFlags.IsTriList) != StripFlags.None)
+                        {
+                            for (int i = 0; i < strip.NumIndices; i += 3)
+                            {
+                                int index = strip.IndexOffset + i;
+
+                                for (int j = 0; j < 3; j++)
+                                {
+                                    var meshIndex = group.GetMeshIndex(index + j);
+                                    materialBatch.Indices.Add(meshIndex);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Debug.Assert((flags & StripFlags.IsTriStrip) != StripFlags.None);
+
+                            for (int i = 0; i < strip.NumIndices - 2; ++i)
+                            {
+                                int index = strip.IndexOffset + i;
+                                int ccw = 1 - (i & 1);
+
+                                var indices = new ushort[3]
+                                {
+                                    group.GetMeshIndex(index),
+                                    group.GetMeshIndex(index + 1 + ccw),
+                                    group.GetMeshIndex(index + 2 - ccw)
+                                };
+
+                                materialBatch.Indices.AddRange(indices);
+                            }
+                        }
+                    }
+                }
+
+                materialBatches.Add(materialBatch);
+            }
+
+            return materialBatches;
         }
     }
 }

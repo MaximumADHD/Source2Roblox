@@ -227,4 +227,61 @@ namespace Source2Roblox.Models
             Fixups = new VertexFixup[0];
         }
     }
+
+    public class ModelVertexData
+    {
+        public readonly StudioModel Model;
+        public readonly VertexData VertexData;
+
+        public ModelVertexData(StudioModel model, VertexData data)
+        {
+            Model = model;
+            VertexData = data;
+        }
+
+        public int GetGlobalVertexIndex(int i)
+        {
+            return i + (Model.VertexIndex / 48);
+        }
+
+        public int GetGlobalTangentIndex(int i)
+        {
+            return i + (Model.TangentIndex / 16);
+        }
+
+        public StudioVertex GetVertex(int i)
+        {
+            int index = GetGlobalVertexIndex(i);
+            return VertexData.Vertices[index];
+        }
+    }
+
+    public class MeshVertexData
+    {
+        public readonly StudioMesh Mesh;
+        public readonly ModelVertexData VertexData;
+
+        public MeshVertexData(StudioMesh mesh, ModelVertexData data)
+        {
+            Mesh = mesh;
+            VertexData = data;
+        }
+
+        public int GetModelVertexIndex(int i)
+        {
+            return Mesh.VertexOffset + i;
+        }
+
+        public int GetGlobalVertexIndex(int i)
+        {
+            int index = GetModelVertexIndex(i);
+            return VertexData.GetGlobalVertexIndex(index);
+        }
+
+        public StudioVertex GetVertex(int i)
+        {
+            int index = GetModelVertexIndex(i);
+            return VertexData.GetVertex(index);
+        }
+    }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 using Source2Roblox.World;
@@ -6,7 +7,7 @@ using Source2Roblox.World.Types;
 
 using RobloxFiles.DataTypes;
 using Source2Roblox.Models;
-using System.Linq;
+using System.Diagnostics;
 
 namespace Source2Roblox
 {
@@ -14,11 +15,20 @@ namespace Source2Roblox
     {
         private const TextureFlags IGNORE = TextureFlags.Sky | TextureFlags.Trans | TextureFlags.Hint | TextureFlags.Skip | TextureFlags.Trigger;
 
-        public static string BakeMDL(ModelFile model, int lod = 0)
+        public static string BakeMDL(ModelFile model, int lod = 0, int subModel = 0)
         {
-            var vvd = model.GetVertexData(lod);
             var writer = new StringBuilder();
-            var allVerts = vvd.Vertices;
+            var matBatches = new List<MaterialBatch>();
+
+            for (int i = 0; i < model.BodyPartCount; i++)
+            {
+                var batches = model.GetTriangles(lod, subModel, i);
+                matBatches.AddRange(batches);
+            }
+            
+            var allVerts = matBatches
+                .SelectMany(batch => batch.Vertices)
+                .ToArray();
 
             foreach (var vert in allVerts)
             {
@@ -35,44 +45,35 @@ namespace Source2Roblox
                 writer.AppendLine();
             }
 
-            var meshes = model
-                .BodyParts[0]
-                .Models[0]
-                .LODs[lod]
-                .Meshes;
+            int baseIndex = 1;
 
-            for (int m = 0; m < meshes.Length; m++)
+            for (int i = 0; i < matBatches.Count; i++)
             {
-                var mesh = meshes[m];
-                var groups = mesh.StripGroups;
+                var matBatch = matBatches[i];
+                writer.AppendLine($"g group_{i}");
+                writer.AppendLine($"usemtl test_{i}");
 
-                if (!groups.Any())
-                    continue;
-
-                var verts = groups
-                    .SelectMany(group => group.Verts)
-                    .ToArray();
-
-                var indices = mesh.Indices;
-
-                writer.AppendLine($"g group_{m}");
-                writer.AppendLine($" usemtl test_{m}");
-
-                for (int i = 0; i < indices.Length; i += 3)
+                for (int j = 0; j < matBatch.NumIndices; j += 3)
                 {
-                    writer.Append("  f");
+                    writer.Append("f");
 
-                    for (int j = 2; j >= 0; j--)
+                    for (int k = 2; k >= 0; k--)
                     {
-                        int index = indices[i + j];
-                        var vert = verts[index];
+                        int f = matBatch.Indices[j + k];
 
-                        int face = 1 + vert.Index;
-                        writer.Append($" {face}/{face}/{face}");
+                        if (f >= 0 && f < matBatch.NumVerts)
+                            f += baseIndex;
+                        else
+                            Debugger.Break();
+
+                        writer.Append($" {f}/{f}/{f}");
                     }
 
                     writer.AppendLine();
                 }
+
+                baseIndex += matBatch.NumVerts;
+                writer.AppendLine();
             }
 
             return writer.ToString();

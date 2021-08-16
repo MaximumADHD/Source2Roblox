@@ -31,34 +31,62 @@ namespace Source2Roblox.Models
         IsEyes
     }
 
-    public class StripVertex
+    public class BoneStateChange
     {
-        public float[] BoneWeights;
-        public byte[] BoneIds;
+        public int HardwareId;
+        public int NewBoneId;
+    }
 
+    public class Vertex
+    {
         public StripGroup Group;
-        public int Index;
+
+        public byte[] BoneWeightIndex;
+        public byte NumBones;
+
+        public ushort OrigMeshVertId;
+        public byte[] BoneIds;
 
         public override string ToString()
         {
-            return $"{Index}";
+            return $"{OrigMeshVertId}";
         }
+    }
 
-        public static implicit operator int(StripVertex vertex)
-        {
-            return vertex.Index;
-        }
+    public class Strip
+    {
+        public int NumIndices;
+        public int IndexOffset;
+
+        public int NumVerts;
+        public int VertOffset;
+
+        public short NumBones;
+        public StripFlags Flags;
+
+        public StripGroup Group;
+        public BoneStateChange[] BoneStateChanges;
     }
 
     public class StripGroup
     {
+        public Vertex[] Vertices;
+        public ushort[] Indices;
+        public Strip[] Strips;
+
         public StripGroupFlags Flags;
-        public StripVertex[] Verts;
         public StudioMesh Mesh;
 
         public override string ToString()
         {
             return $"StripGroup (Flags: {Flags})";
+        }
+
+        public ushort GetMeshIndex(int i)
+        {
+            var index = Indices[i];
+            var vert = Vertices[index];
+            return vert.OrigMeshVertId;
         }
     }
 
@@ -66,7 +94,6 @@ namespace Source2Roblox.Models
     {
         public StudioMeshFlags Flags;
         public StripGroup[] StripGroups;
-        public ushort[] Indices;
 
         public StudioModelLOD LOD;
         public string[] MaterialNames;
