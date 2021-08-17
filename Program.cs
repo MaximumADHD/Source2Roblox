@@ -30,7 +30,9 @@ namespace Source2Roblox
 
         public static void BakeRbxm(ModelFile model)
         {
-            string modelName = model.Name
+            var modelInfo = new FileInfo(model.Name);
+            
+            string modelName = modelInfo.Name
                 .Replace(".mdl", "")
                 .ToLowerInvariant();
 
