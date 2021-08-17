@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 
 using RobloxFiles.DataTypes;
+using Microsoft.Win32;
 
 public static class Extensions
 {
@@ -88,6 +89,18 @@ public static class Extensions
             encoding = Encoding.UTF8;
         
         return encoding.GetString(bytes);
+    }
+
+    public static RegistryKey GetSubKey(this RegistryKey key, params string[] path)
+    {
+        string constructedPath = Path.Combine(path);
+        return key.CreateSubKey(constructedPath, RegistryKeyPermissionCheck.ReadWriteSubTree, RegistryOptions.None);
+    }
+
+    public static string GetString(this RegistryKey key, string name)
+    {
+        var result = key.GetValue(name, "");
+        return result.ToString();
     }
 }
 

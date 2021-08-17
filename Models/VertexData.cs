@@ -1,9 +1,12 @@
-﻿using RobloxFiles.DataTypes;
-using Source2Roblox.FileSystem;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+
+using Source2Roblox.FileSystem;
+using Source2Roblox.Geometry;
+
+using RobloxFiles.DataTypes;
 
 namespace Source2Roblox.Models
 {
@@ -54,17 +57,21 @@ namespace Source2Roblox.Models
 
     public class StudioVertex
     {
-        public readonly float[] Weights;
-        public readonly byte[] Bones;
-        public readonly byte NumBones;
+        public float[] Weights;
+        public byte[] Bones;
+        public byte NumBones;
 
-        public readonly Vector3 Position;
-        public readonly Vector3 Normal;
-        public readonly Vector2 UV;
+        public Vector3 Position;
+        public Vector3 Normal;
+        public Vector2 UV;
 
         public override string ToString()
         {
             return $"[{Position}][{Normal}][{UV}]";
+        }
+
+        public StudioVertex()
+        {
         }
 
         public StudioVertex(BinaryReader reader)
@@ -83,6 +90,25 @@ namespace Source2Roblox.Models
             Position = reader.ReadVector3();
             Normal = reader.ReadVector3();
             UV = reader.ReadVector2();
+        }
+
+        public static implicit operator RobloxVertex(StudioVertex vertex)
+        {
+            var oldPos = vertex.Position;
+            var newPos = new Vector3(oldPos.X, oldPos.Z, -oldPos.Y) / 10f;
+
+            var oldNorm = vertex.Normal;
+            var newNorm = new Vector3(oldNorm.X, oldNorm.Z, -oldNorm.Y);
+
+            var oldUV = vertex.UV;
+            var newUV = new Vector3(oldUV.X, 1f - oldUV.Y);
+
+            return new RobloxVertex()
+            {
+                Position = newPos,
+                Normal = newNorm,
+                UV = newUV
+            };
         }
     }
 

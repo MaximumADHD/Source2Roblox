@@ -4,9 +4,14 @@ using System.Diagnostics;
 using System.IO;
 
 using Source2Roblox.FileSystem;
+using Source2Roblox.Geometry;
 using Source2Roblox.Models;
 using Source2Roblox.Textures;
 using Source2Roblox.World;
+
+using RobloxFiles;
+using RobloxFiles.DataTypes;
+using System.Linq;
 
 namespace Source2Roblox
 {
@@ -21,6 +26,140 @@ namespace Source2Roblox
                 return arg;
 
             return null;
+        }
+
+        public static void BakeRbxm(ModelFile model)
+        {
+            string modelName = model.Name
+                .Replace(".mdl", "")
+                .ToLowerInvariant();
+
+            string localAppData = Environment.GetEnvironmentVariable("localappdata");
+            string exportDir = Path.Combine(localAppData, "Roblox Studio", "content", "models", modelName);
+
+            Directory.CreateDirectory(exportDir);
+
+            var meshBuffers = new List<MeshBuffer>();
+            var exportBlob = new BinaryRobloxFile();
+
+            var exportModel = new Model()
+            {
+                Name = modelName,
+                Parent = exportBlob
+            };
+
+            for (int bodyPart = 0; bodyPart < model.BodyPartCount; bodyPart++)
+            {
+                var meshes = model.GetMeshes(bodyPart);
+                meshBuffers.AddRange(meshes);
+            }
+
+            var allVerts = meshBuffers.SelectMany(buff => buff.Vertices);
+            Region3 baseAABB = MeshBuffer.ComputeAABB(allVerts);
+            Vector3 baseCenter = baseAABB.CFrame.Position;
+
+            foreach (var meshBuffer in meshBuffers)
+            {
+                Region3 aabb = MeshBuffer.ComputeAABB(meshBuffer.Vertices);
+                Vector3 center = aabb.CFrame.Position;
+
+                int numVerts = meshBuffer.NumVerts;
+                int numIndices = meshBuffer.NumIndices;
+
+                var verts = meshBuffer.Vertices;
+                var indices = meshBuffer.Indices;
+
+                var mesh = new RobloxMesh()
+                {
+                    NumVerts = numVerts,
+                    NumFaces = numIndices / 3,
+
+                    Verts = new List<RobloxVertex>(),
+                    Faces = new List<int[]>()
+                };
+
+                mesh.NumVerts = meshBuffer.NumVerts;
+                mesh.NumFaces = meshBuffer.NumIndices / 3;
+
+                foreach (RobloxVertex vert in verts)
+                {
+                    vert.Position -= center;
+                    mesh.Verts.Add(vert);
+                }
+                
+                for (int i = 0; i < numIndices; i += 3)
+                {
+                    var face = new int[3]
+                    {
+                        indices[i + 2],
+                        indices[i + 1],
+                        indices[i + 0],
+                    };
+
+                    mesh.Faces.Add(face);
+                }
+
+                var info = new FileInfo(meshBuffer.MaterialPath);
+                var name = info.Name.Replace(".vmt", "");
+
+                if (!name.StartsWith(modelName))
+                    name = $"{modelName}_{name}";
+
+                var meshPart = new MeshPart()
+                {
+                    MeshId = $"rbxasset://models/{modelName}/{name}.mesh",
+                    BrickColor = BrickColor.Random(),
+                    InitialSize = aabb.Size,
+                    CFrame = aabb.CFrame,
+                    DoubleSided = true,
+                    Size = aabb.Size,
+                    Name = name,
+                };
+
+                string meshPath = Path.Combine(exportDir, $"{name}.mesh");
+
+                using (var stream = File.OpenWrite(meshPath))
+                    mesh.Save(stream);
+
+                meshPart.Parent = exportModel;
+            }
+
+            var parts = exportModel.GetChildrenOfType<BasePart>();
+            BasePart largestPart = null;
+            float largestMass = 0;
+
+            foreach (var part in parts)
+            {
+                var size = part.Size;
+                var mass = size.X * size.Y * size.Z;
+
+                if (mass > largestMass)
+                {
+                    largestMass = mass;
+                    largestPart = part;
+                }
+            }
+
+            foreach (var otherPart in parts)
+            {
+                if (otherPart == largestPart)
+                    continue;
+
+                var weld = new WeldConstraint()
+                {
+                    Name = otherPart.Name,
+                    Part0Internal = otherPart,
+                    Part1Internal = largestPart,
+                    CFrame0 = otherPart.CFrame.ToObjectSpace(largestPart.CFrame)
+                };
+
+                weld.Parent = otherPart;
+            }
+
+            string exportPath = Path.Combine(exportDir, $"{modelName}.rbxm");
+            exportModel.WorldPivotData = new CFrame();
+            exportModel.PrimaryPart = largestPart;
+            exportBlob.Save(exportPath);
         }
 
         static void Main(string[] args)
@@ -125,15 +264,8 @@ namespace Source2Roblox
                     }
 
                     var mdl = new ModelFile(path);
-                    var info = new FileInfo(mdl.Name);
-
-                    string name = info.Name.Replace(info.Extension, "");
-                    string exportTo = Path.Combine(exportDir, name);
-                        
-                    ObjMesher.BakeMDL(mdl, exportTo);
-                    Console.WriteLine($"\tWrote files to {exportTo}!");
+                    BakeRbxm(mdl);
                 }
-                
             }
 
             if (mapName != null)

@@ -12,9 +12,8 @@ using Source2Roblox.World.Types;
 
 using RobloxFiles.DataTypes;
 using ValveKeyValue;
-using System.Diagnostics;
 
-namespace Source2Roblox
+namespace Source2Roblox.Geometry
 {
     public static class ObjMesher
     {
@@ -43,7 +42,7 @@ namespace Source2Roblox
             
             for (int bodyPart = 0; bodyPart < model.BodyPartCount; bodyPart++)
             {
-                var meshes = model.GetMeshes(lod, skin, subModel, bodyPart);
+                var meshes = model.GetMeshes(bodyPart, subModel, lod, skin);
                 meshBuffers.AddRange(meshes);
             }
 

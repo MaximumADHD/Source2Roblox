@@ -48,6 +48,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>packages\Newtonsoft.Json.13.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="SevenZip, Version=19.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\SevenZip.19.0.0\lib\net20\SevenZip.dll</HintPath>
     </Reference>
@@ -62,9 +65,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Geometry\RobloxMesh.cs" />
     <Compile Include="Models\Constants.cs" />
     <Compile Include="Models\TriangleData.cs" />
     <Compile Include="Models\VertexData.cs" />
+    <Compile Include="Util\Formatting.cs" />
+    <Compile Include="Util\RobloxWebClient.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="World\BSPFile.cs" />
     <Compile Include="World\Lump.cs" />
     <Compile Include="World\Lumps\Brushes.cs" />
