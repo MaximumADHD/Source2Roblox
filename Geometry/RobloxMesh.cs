@@ -47,7 +47,7 @@ namespace Source2Roblox.Geometry
             var newNorm = new Vector3(oldNorm.X, -oldNorm.Z, oldNorm.Y);
 
             var oldUV = vertex.UV;
-            var newUV = new Vector2(oldUV.X, 1f - oldUV.Y);
+            var newUV = new Vector2(oldUV.X, oldUV.Y);
 
             return new StudioVertex
             {

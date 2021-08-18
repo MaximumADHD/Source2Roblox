@@ -101,7 +101,7 @@ namespace Source2Roblox.Models
             var newNorm = new Vector3(oldNorm.X, oldNorm.Z, -oldNorm.Y);
 
             var oldUV = vertex.UV;
-            var newUV = new Vector3(oldUV.X, 1f - oldUV.Y);
+            var newUV = new Vector3(oldUV.X, oldUV.Y);
 
             return new RobloxVertex()
             {

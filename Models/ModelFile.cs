@@ -112,7 +112,9 @@ namespace Source2Roblox.Models
                 string textureDir = mdlReader.ReadString(null);
                 string materialDir = Path.Combine("materials", textureDir);
 
+                materialDir = Program.CleanPath(materialDir);
                 materialDirs.Add(materialDir);
+
                 mdlStream.Position = restore;
             }
 
@@ -125,15 +127,21 @@ namespace Source2Roblox.Models
                 mdlStream.Position += (nameIndex - 4);
 
                 string name = mdlReader.ReadString(null);
+                name = Program.CleanPath(name);
                 textureIndex += 0x40;
+
+                if (name.Contains('/'))
+                    if (!name.StartsWith("materials"))
+                        name = "materials/" + name;
 
                 foreach (string dir in materialDirs)
                 {
-                    string mtlPath = (dir + name + ".vmt")
-                        .ToLowerInvariant()
-                        .Replace('\\', '/');
+                    string mtlPath = Program.CleanPath(name + ".vmt");
+                    
+                    if (!mtlPath.StartsWith(dir))
+                        mtlPath = dir + mtlPath;
 
-                    if (GameMount.HasFile(path, game))
+                    if (GameMount.HasFile(mtlPath, game))
                     {
                         materialPaths.Add(mtlPath);
                         break;
@@ -302,7 +310,15 @@ namespace Source2Roblox.Models
                             for (int i = 0; i < numSkinFamilies; i++)
                             {
                                 int matIndex = skinArray[i * numSkinRef + skinRefIndex];
-                                matPaths[i] = lodMaterialPaths[LOD][matIndex];
+
+                                try
+                                {
+                                    matPaths[i] = lodMaterialPaths[LOD][matIndex];
+                                }
+                                catch
+                                {
+                                    matPaths[i] = "";
+                                }
                             }
 
                             var mesh = new StudioMesh()

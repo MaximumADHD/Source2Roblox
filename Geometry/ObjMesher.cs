@@ -28,17 +28,19 @@ namespace Source2Roblox.Geometry
 
         public static void BakeMDL(ModelFile model, string exportDir, int skin = 0, int lod = 0, int subModel = 0)
         {
-            if (!Directory.Exists(exportDir))
-                Directory.CreateDirectory(exportDir);
-
             var game = model.Game;
             var info = new FileInfo(model.Name);
 
             string name = info.Name.Replace(".mdl", "");
+            exportDir = Path.Combine(exportDir, "SourceModels", name);
+
+            if (!Directory.Exists(exportDir))
+                Directory.CreateDirectory(exportDir);
 
             var objWriter = new StringBuilder();
             var mtlWriter = new StringBuilder();
             var meshBuffers = new List<MeshBuffer>();
+            var handledFiles = new HashSet<string>();
             
             for (int bodyPart = 0; bodyPart < model.BodyPartCount; bodyPart++)
             {
@@ -94,76 +96,12 @@ namespace Source2Roblox.Geometry
                     using (var vmtStream = GameMount.OpenRead(matPath, game))
                     {
                         var vmt = VmtHelper.Deserialize(vmtStream);
-                       
+
                         foreach (var entry in vmt)
-                        {
-                            string key = entry.Name.ToLowerInvariant();
-                            var value = entry.Value.ToString();
+                            Program.ProcessVMT(entry, ref diffusePath, ref bumpPath, ref noAlpha);
 
-                            if (key == "$basetexture")
-                            {
-                                string path = $"materials/{value}.vtf";
-
-                                if (!GameMount.HasFile(path, game))
-                                {
-                                    Console.WriteLine($"\tInvalid $basetexture: {path}");
-                                    continue;
-                                }
-
-                                diffusePath = path;
-                            }
-                            else if (key == "$bumpmap")
-                            {
-                                string path = $"materials/{value}.vtf";
-
-                                if (!GameMount.HasFile(path, game))
-                                {
-                                    Console.WriteLine($"\tInvalid $bumpmap: {path}");
-                                    continue;
-                                }
-
-                                bumpPath = path;
-                            }
-                            else if (key == "$translucent")
-                            {
-                                bool alpha = (value == "1");
-                                noAlpha = !alpha;
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(diffusePath))
-                        {
-                            string diffuseName = GetFileName(diffusePath);
-                            string diffuseFile = Path.Combine(exportDir, diffuseName + ".png");
-
-                            Console.WriteLine($"\tReading {diffusePath}");
-
-                            using (var vtfStream = GameMount.OpenRead(diffusePath, game))
-                            using (var vtfReader = new BinaryReader(vtfStream))
-                            {
-                                var vtf = new VTFFile(vtfReader, noAlpha);
-                                vtf.HighResImage.Save(diffuseFile);
-
-                                Console.WriteLine($"\tWrote {diffuseFile}");
-                            }
-                        }
-
-                        if (!string.IsNullOrEmpty(bumpPath))
-                        {
-                            string bumpName = GetFileName(bumpPath);
-                            string bumpFile = Path.Combine(exportDir, bumpName + ".png");
-
-                            Console.WriteLine($"\tReading {bumpPath}");
-
-                            using (var vtfStream = GameMount.OpenRead(bumpPath, game))
-                            using (var vtfReader = new BinaryReader(vtfStream))
-                            {
-                                var vtf = new VTFFile(vtfReader, noAlpha);
-                                vtf.HighResImage.Save(bumpFile);
-
-                                Console.WriteLine($"\tWrote {bumpFile}");
-                            }
-                        }
+                        Program.SaveVTF(diffusePath, noAlpha, exportDir, game);
+                        Program.SaveVTF(bumpPath, true, exportDir, game);
                     }
                 }
                 

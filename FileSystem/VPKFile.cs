@@ -36,9 +36,7 @@ namespace Source2Roblox.FileSystem
 
         public bool HasFile(string path)
         {
-            path = path
-                .ToLowerInvariant()
-                .Replace('\\', '/');
+            path = Program.CleanPath(path);
 
             if (binaries.Keys.Contains(path))
                 return true;

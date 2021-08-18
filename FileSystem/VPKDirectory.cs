@@ -29,10 +29,7 @@ namespace Source2Roblox.FileSystem
 
                 string dirPrefix = dir.Trim() == "" ? "" : $"{dir}/";
 
-                string path = $"{dirPrefix}{fileName}.{ext}"
-                    .ToLowerInvariant()
-                    .Replace('\\', '/');
-
+                string path = Program.CleanPath($"{dirPrefix}{fileName}.{ext}");
                 var entry = new VPKEntry(path, reader);
                 EntriesImpl.Add(path, entry);
             }

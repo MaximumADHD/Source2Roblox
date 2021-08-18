@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Diagnostics;
 using System.IO;
 
@@ -10,14 +11,19 @@ using Source2Roblox.Textures;
 using Source2Roblox.World;
 
 using RobloxFiles;
+using RobloxFiles.Enums;
 using RobloxFiles.DataTypes;
 using System.Linq;
+
+using ValveKeyValue;
 
 namespace Source2Roblox
 {
     class Program
     {
         private static readonly Dictionary<string, string> argMap = new Dictionary<string, string>();
+        private static readonly Dictionary<string, Image> handledFiles = new Dictionary<string, Image>();
+        private static readonly KVSerializer VmtHelper = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
         public static GameMount GameMount { get; private set; }
         
         public static string GetArg(string argName)
@@ -26,6 +32,84 @@ namespace Source2Roblox
                 return arg;
 
             return null;
+        }
+
+        public static string CleanPath(string path)
+        {
+            string cleaned = path
+                .ToLowerInvariant()
+                .Replace('\\', '/');
+
+            return cleaned;
+        }
+
+        public static string GetFileName(string path)
+        {
+            var info = new FileInfo(path);
+            return info.Name.Replace(info.Extension, "");
+        }
+
+        public static void SaveVTF(string path, bool noAlpha, string exportDir, GameMount game = null)
+        {
+            if (!string.IsNullOrEmpty(path))
+            {
+                string fileName = GetFileName(path);
+                string filePath = Path.Combine(exportDir, fileName + ".png");
+
+                if (handledFiles.ContainsKey(filePath))
+                    return;
+
+                if (!handledFiles.TryGetValue(path, out Image bitmap))
+                {
+                    Console.WriteLine($"\tReading {path}");
+
+                    using (var vtfStream = GameMount.OpenRead(path, game))
+                    using (var vtfReader = new BinaryReader(vtfStream))
+                    {
+                        var vtf = new VTFFile(vtfReader, noAlpha);
+                        bitmap = vtf.HighResImage;
+
+                        handledFiles.Add(path, bitmap);
+                    }
+                }
+
+                bitmap.Save(filePath);
+                handledFiles[filePath] = bitmap;
+
+                Console.WriteLine($"\tWrote {filePath}");
+            }
+        }
+
+        public static void ProcessVMT(KVObject entry, ref string diffusePath, ref string bumpPath, ref bool noAlpha)
+        {
+            string key = entry.Name.ToLowerInvariant();
+            var value = entry.Value.ToString();
+
+            if (key == ">=dx90_20b")
+            {
+                foreach (var child in entry.Children)
+                    ProcessVMT(child, ref diffusePath, ref bumpPath, ref noAlpha);
+
+                return;
+            }
+
+            if (key == "$basetexture")
+            {
+                diffusePath = $"materials/{value}.vtf";
+                return;
+            }
+
+            if (key == "$bumpmap")
+            {
+                bumpPath = $"materials/{value}.vtf";
+                return;
+            }
+
+            if (key == "$translucent")
+            {
+                noAlpha = (value != "1");
+                return;
+            }
         }
 
         public static void BakeRbxm(ModelFile model)
@@ -59,6 +143,10 @@ namespace Source2Roblox
             var allVerts = meshBuffers.SelectMany(buff => buff.Vertices);
             Region3 baseAABB = MeshBuffer.ComputeAABB(allVerts);
             Vector3 baseCenter = baseAABB.CFrame.Position;
+
+            var handledFiles = new HashSet<string>();
+            string lastBodyPart = "";
+            var game = model.Game;
 
             foreach (var meshBuffer in meshBuffers)
             {
@@ -101,22 +189,79 @@ namespace Source2Roblox
                     mesh.Faces.Add(face);
                 }
 
-                var info = new FileInfo(meshBuffer.MaterialPath);
-                var name = info.Name.Replace(".vmt", "");
+                string matPath = meshBuffer.MaterialPath;
+                var info = new FileInfo(matPath);
 
+                string matName = info.Name.Replace(".vmt", "");
+                string name = meshBuffer.BodyPart;
+
+                if (name == lastBodyPart)
+                    name = matName;
+                else
+                    lastBodyPart = name;
+                
                 if (!name.StartsWith(modelName))
                     name = $"{modelName}_{name}";
+
+                string diffusePath = "",
+                       bumpPath = "";
+
+                bool noAlpha = true;
+
+                if (GameMount.HasFile(matPath, game))
+                {
+                    handledFiles.Add(matPath);
+
+                    using (var vmtStream = GameMount.OpenRead(matPath, game))
+                    {
+                        var vmt = VmtHelper.Deserialize(vmtStream);
+
+                        foreach (var entry in vmt)
+                            ProcessVMT(entry, ref diffusePath, ref bumpPath, ref noAlpha);
+
+                        SaveVTF(diffusePath, noAlpha, exportDir, game);
+                        SaveVTF(bumpPath, true, exportDir, game);
+                    }
+                }
 
                 var meshPart = new MeshPart()
                 {
                     MeshId = $"rbxasset://models/{modelName}/{name}.mesh",
-                    BrickColor = BrickColor.Random(),
                     InitialSize = aabb.Size,
                     CFrame = aabb.CFrame,
                     DoubleSided = true,
                     Size = aabb.Size,
+                    Anchored = true,
                     Name = name,
                 };
+
+                if (string.IsNullOrEmpty(diffusePath))
+                {
+                    meshPart.Color3uint8 = new Color3(1, 1, 1);
+                    meshPart.Material = Material.SmoothPlastic;
+                }
+                else
+                {
+                    string diffuseName = GetFileName(diffusePath);
+                    meshPart.TextureID = $"rbxasset://models/{modelName}/{diffuseName}.png";
+
+                    if (!string.IsNullOrEmpty(bumpPath) || !noAlpha)
+                    {
+                        var surface = new SurfaceAppearance()
+                        {
+                            AlphaMode = noAlpha ? AlphaMode.Overlay : AlphaMode.Transparency,
+                            ColorMap = meshPart.TextureID,
+                        };
+
+                        if (!string.IsNullOrEmpty(bumpPath))
+                        {
+                            string bumpName = GetFileName(bumpPath);
+                            surface.NormalMap = $"rbxasset://models/{modelName}/{bumpName}.png";
+                        }
+                        
+                        surface.Parent = meshPart;
+                    }
+                }
 
                 string meshPath = Path.Combine(exportDir, $"{name}.mesh");
 
@@ -142,23 +287,7 @@ namespace Source2Roblox
                 }
             }
 
-            foreach (var otherPart in parts)
-            {
-                if (otherPart == largestPart)
-                    continue;
-
-                var weld = new WeldConstraint()
-                {
-                    Name = otherPart.Name,
-                    Part0Internal = otherPart,
-                    Part1Internal = largestPart,
-                    CFrame0 = otherPart.CFrame.ToObjectSpace(largestPart.CFrame)
-                };
-
-                weld.Parent = otherPart;
-            }
-
-            string exportPath = Path.Combine(exportDir, $"{modelName}.rbxm");
+            string exportPath = Path.Combine(exportDir, "..", $"{modelName}.rbxm");
             exportModel.WorldPivotData = new CFrame();
             exportModel.PrimaryPart = largestPart;
             exportBlob.Save(exportPath);
@@ -266,7 +395,16 @@ namespace Source2Roblox
                     }
 
                     var mdl = new ModelFile(path);
-                    BakeRbxm(mdl);
+                    // ObjMesher.BakeMDL(mdl, desktop);
+
+                    try
+                    {
+                        BakeRbxm(mdl);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Error! {e.Message} {e.StackTrace}");
+                    }
                 }
             }
 
