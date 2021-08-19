@@ -1,5 +1,4 @@
-﻿using RobloxFiles.DataTypes;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 
 namespace Source2Roblox.FileSystem
@@ -7,26 +6,28 @@ namespace Source2Roblox.FileSystem
     public class GameMount
     {
         public readonly string GameDir;
-        public IReadOnlyDictionary<string, VPKFile> Mounts => mounts;
+        public readonly string GameName;
 
-        private readonly Dictionary<string, string> routing;
-        private readonly Dictionary<string, VPKFile> mounts;
-        
+        private readonly Dictionary<string, string> Routing;
+        private readonly Dictionary<string, VPKFile> Mounts;
+
         public GameMount(string gameDir)
         {
+            var dirInfo = new DirectoryInfo(gameDir);
+            GameName = dirInfo.Name;
             GameDir = gameDir;
-
-            mounts = new Dictionary<string, VPKFile>();
-            routing = new Dictionary<string, string>();
+            
+            Mounts = new Dictionary<string, VPKFile>();
+            Routing = new Dictionary<string, string>();
 
             foreach (string file in Directory.GetFiles(gameDir))
             {
-                var info = new FileInfo(file);
+                var fileInfo = new FileInfo(file);
 
-                if (info.Extension != ".vpk")
+                if (fileInfo.Extension != ".vpk")
                     continue;
 
-                string path = info.FullName;
+                string path = fileInfo.FullName;
 
                 if (path.EndsWith("_dir.vpk"))
                     path = path.Replace("_dir.vpk", "");
@@ -36,13 +37,13 @@ namespace Source2Roblox.FileSystem
                 var vpk = new VPKFile(path);
                 string name = vpk.ToString();
 
-                mounts.Add(name, vpk);
+                Mounts.Add(name, vpk);
             }
         }
 
         private string GetRouting(string path)
         {
-            if (routing.TryGetValue(path, out string route))
+            if (Routing.TryGetValue(path, out string route))
                 return route;
 
             foreach (string name in Mounts.Keys)
@@ -56,7 +57,7 @@ namespace Source2Roblox.FileSystem
                 }
             }
 
-            routing[path] = route;
+            Routing[path] = route;
 
             if (route == null)
             {
@@ -65,7 +66,7 @@ namespace Source2Roblox.FileSystem
                 if (File.Exists(fullPath))
                 {
                     route = fullPath;
-                    routing[path] = route;
+                    Routing[path] = route;
                 }
             }
             
@@ -79,7 +80,7 @@ namespace Source2Roblox.FileSystem
             if (route == null)
                 return false;
 
-            if (mounts.ContainsKey(route))
+            if (Mounts.ContainsKey(route))
                 return true;
 
             if (File.Exists(route))
@@ -102,7 +103,7 @@ namespace Source2Roblox.FileSystem
                 return File.OpenRead(route);
 
             // Clear invalid route.
-            routing.Remove(path);
+            Routing.Remove(path);
 
             // Try fetching again.
             return OpenRead(path);

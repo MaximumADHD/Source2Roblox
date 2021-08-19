@@ -73,6 +73,7 @@
     <Compile Include="Util\RobloxWebClient.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Util\ValveMaterial.cs" />
     <Compile Include="World\BSPFile.cs" />
     <Compile Include="World\Lump.cs" />
     <Compile Include="World\Lumps\Brushes.cs" />

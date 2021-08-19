@@ -188,9 +188,9 @@ namespace Source2Roblox.Textures
                     int alpha = 255;
 
                     if (a0 > a1)
-                        alpha = ((8 - code) * a0 + (code - 1) * a1) / 7;
+                        alpha = ((8 - code) * a0 + (code - 1) * a1 + 3) / 7;
                     else if (code < 6)
-                        alpha = ((6 - code) * a0 + (code - 1) * a1) / 5;
+                        alpha = ((6 - code) * a0 + (code - 1) * a1 + 2) / 5;
                     else if (code == 6)
                         alpha = 0;
 
@@ -207,10 +207,12 @@ namespace Source2Roblox.Textures
                     a0 = reader.ReadByte();
                     a1 = reader.ReadByte();
 
-                    ulong part1 = reader.ReadUInt16();
-                    ulong part2 = reader.ReadUInt32();
+                    for (int i = 0; i < 6; i++)
+                    {
+                        ulong part = reader.ReadByte();
+                        alphaBuffer |= part << (8 * i);
+                    }
 
-                    alphaBuffer = (part1 << 32) | part2;
                     ReadColorBlock(ref colors, ref offset, reader, width, clrParams);
                 }
             }

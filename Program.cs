@@ -16,14 +16,13 @@ using RobloxFiles.DataTypes;
 using System.Linq;
 
 using ValveKeyValue;
+using Source2Roblox.Util;
 
 namespace Source2Roblox
 {
     class Program
     {
         private static readonly Dictionary<string, string> argMap = new Dictionary<string, string>();
-        private static readonly Dictionary<string, Image> handledFiles = new Dictionary<string, Image>();
-        private static readonly KVSerializer VmtHelper = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
         public static GameMount GameMount { get; private set; }
         
         public static string GetArg(string argName)
@@ -43,88 +42,25 @@ namespace Source2Roblox
             return cleaned;
         }
 
-        public static string GetFileName(string path)
-        {
-            var info = new FileInfo(path);
-            return info.Name.Replace(info.Extension, "");
-        }
-
-        public static void SaveVTF(string path, bool noAlpha, string exportDir, GameMount game = null)
-        {
-            if (!string.IsNullOrEmpty(path))
-            {
-                string fileName = GetFileName(path);
-                string filePath = Path.Combine(exportDir, fileName + ".png");
-
-                if (handledFiles.ContainsKey(filePath))
-                    return;
-
-                if (!handledFiles.TryGetValue(path, out Image bitmap))
-                {
-                    Console.WriteLine($"\tReading {path}");
-
-                    using (var vtfStream = GameMount.OpenRead(path, game))
-                    using (var vtfReader = new BinaryReader(vtfStream))
-                    {
-                        var vtf = new VTFFile(vtfReader, noAlpha);
-                        bitmap = vtf.HighResImage;
-
-                        handledFiles.Add(path, bitmap);
-                    }
-                }
-
-                bitmap.Save(filePath);
-                handledFiles[filePath] = bitmap;
-
-                Console.WriteLine($"\tWrote {filePath}");
-            }
-        }
-
-        public static void ProcessVMT(KVObject entry, ref string diffusePath, ref string bumpPath, ref bool noAlpha)
-        {
-            string key = entry.Name.ToLowerInvariant();
-            var value = entry.Value.ToString();
-
-            if (key == ">=dx90_20b")
-            {
-                foreach (var child in entry.Children)
-                    ProcessVMT(child, ref diffusePath, ref bumpPath, ref noAlpha);
-
-                return;
-            }
-
-            if (key == "$basetexture")
-            {
-                diffusePath = $"materials/{value}.vtf";
-                return;
-            }
-
-            if (key == "$bumpmap")
-            {
-                bumpPath = $"materials/{value}.vtf";
-                return;
-            }
-
-            if (key == "$translucent")
-            {
-                noAlpha = (value != "1");
-                return;
-            }
-        }
-
         public static void BakeRbxm(ModelFile model)
         {
-            var modelInfo = new FileInfo(model.Name);
+            var modelPath = model.Location;
+            var modelInfo = new FileInfo(modelPath);
+
+            var game = model.Game ?? GameMount;
+            var gameName = game.GameName;
             
             string modelName = modelInfo.Name
                 .Replace(".mdl", "")
                 .ToLowerInvariant();
 
             string localAppData = Environment.GetEnvironmentVariable("localappdata");
-            string exportDir = Path.Combine(localAppData, "Roblox Studio", "content", "models", modelName);
+            string rootWorkDir = Path.Combine(localAppData, "Roblox Studio", "content", "source", gameName);
 
-            Directory.CreateDirectory(exportDir);
-
+            string rbxAssetDir = $"rbxasset://source/{gameName}";
+            string modelDir = modelPath.Replace(modelInfo.Name, "");
+            string meshDir = Path.Combine(modelDir, modelName);
+            
             var meshBuffers = new List<MeshBuffer>();
             var exportBlob = new BinaryRobloxFile();
 
@@ -146,7 +82,6 @@ namespace Source2Roblox
 
             var handledFiles = new HashSet<string>();
             string lastBodyPart = "";
-            var game = model.Game;
 
             foreach (var meshBuffer in meshBuffers)
             {
@@ -203,30 +138,22 @@ namespace Source2Roblox
                 if (!name.StartsWith(modelName))
                     name = $"{modelName}_{name}";
 
-                string diffusePath = "",
-                       bumpPath = "";
-
-                bool noAlpha = true;
+                ValveMaterial vmt = null;
 
                 if (GameMount.HasFile(matPath, game))
                 {
-                    handledFiles.Add(matPath);
-
-                    using (var vmtStream = GameMount.OpenRead(matPath, game))
-                    {
-                        var vmt = VmtHelper.Deserialize(vmtStream);
-
-                        foreach (var entry in vmt)
-                            ProcessVMT(entry, ref diffusePath, ref bumpPath, ref noAlpha);
-
-                        SaveVTF(diffusePath, noAlpha, exportDir, game);
-                        SaveVTF(bumpPath, true, exportDir, game);
-                    }
+                    vmt = new ValveMaterial(matPath, game);
+                    vmt.SaveVTF(vmt.DiffusePath, rootWorkDir);
+                    vmt.SaveVTF(vmt.BumpPath, rootWorkDir, true);
+                    vmt.SaveVTF(vmt.IrisPath, rootWorkDir, false);
                 }
+
+                string meshWorkDir = Path.Combine(rootWorkDir, meshDir);
+                Directory.CreateDirectory(meshWorkDir);
 
                 var meshPart = new MeshPart()
                 {
-                    MeshId = $"rbxasset://models/{modelName}/{name}.mesh",
+                    MeshId = $"{rbxAssetDir}/{meshDir}/{name}.mesh",
                     InitialSize = aabb.Size,
                     CFrame = aabb.CFrame,
                     DoubleSided = true,
@@ -235,6 +162,8 @@ namespace Source2Roblox
                     Name = name,
                 };
 
+                string diffusePath = vmt?.DiffusePath;
+
                 if (string.IsNullOrEmpty(diffusePath))
                 {
                     meshPart.Color3uint8 = new Color3(1, 1, 1);
@@ -242,8 +171,12 @@ namespace Source2Roblox
                 }
                 else
                 {
-                    string diffuseName = GetFileName(diffusePath);
-                    meshPart.TextureID = $"rbxasset://models/{modelName}/{diffuseName}.png";
+                    string diffuseRoblox = diffusePath.Replace(".vtf", ".png");
+                    meshPart.TextureID = $"{rbxAssetDir}/{diffuseRoblox}";
+
+                    bool noAlpha = vmt.NoAlpha;
+                    string bumpPath = vmt.BumpPath;
+                    string irisPath = vmt.IrisPath;
 
                     if (!string.IsNullOrEmpty(bumpPath) || !noAlpha)
                     {
@@ -255,18 +188,66 @@ namespace Source2Roblox
 
                         if (!string.IsNullOrEmpty(bumpPath))
                         {
-                            string bumpName = GetFileName(bumpPath);
-                            surface.NormalMap = $"rbxasset://models/{modelName}/{bumpName}.png";
+                            string bumpRoblox = bumpPath.Replace(".vtf", ".png");
+                            surface.NormalMap = $"{rbxAssetDir}/{bumpRoblox}";
+                        }
+
+                        if (!string.IsNullOrEmpty(irisPath))
+                        {
+                            string irisRoblox = irisPath.Replace(".vtf", ".png");
+
+                            var eye = new BillboardGui
+                            {
+                                ExtentsOffsetWorldSpace = new Vector3(0, 0, -1.5f),
+                                Size = new UDim2(.06f, 0, .06f, 0),
+                                LightInfluence = 1.1f,
+                                Adornee = meshPart,
+                                Parent = meshPart,
+                                Name = "Eye"
+                            };
+
+                            var eyeball = new ImageLabel
+                            {
+                                AnchorPoint = new Vector2(.5f, .5f),
+                                Position = new UDim2(.5f, 0, .5f, 0),
+                                Size = new UDim2(2f, 0, 2f, 0),
+                                Image = meshPart.TextureID,
+                                Name = "Eyeball",
+                                Parent = eye,
+                            };
+
+                            var corner = new UICorner
+                            {
+                                CornerRadius = new UDim(1),
+                                Parent = eyeball
+                            };
+
+                            var iris = new ImageLabel
+                            {
+                                Image = $"{rbxAssetDir}/{irisRoblox}",
+                                Position = new UDim2(.5f, 0, .5f, 0),
+                                AnchorPoint = new Vector2(.5f, .5f),
+                                Size = new UDim2(1.1f, 0, 1.1f, 0),
+                                BackgroundTransparency = 1,
+                                Name = "Iris",
+                                Parent = eye,
+                                ZIndex = 2,
+                            };
+
+                            meshPart.Transparency = 1;
                         }
                         
                         surface.Parent = meshPart;
                     }
                 }
 
-                string meshPath = Path.Combine(exportDir, $"{name}.mesh");
+                string meshPath = Path.Combine(meshWorkDir, $"{name}.mesh");
 
                 using (var stream = File.OpenWrite(meshPath))
+                {
                     mesh.Save(stream);
+                    Console.WriteLine($"\tWrote {meshPath}");
+                }
 
                 meshPart.Parent = exportModel;
             }
@@ -287,10 +268,12 @@ namespace Source2Roblox
                 }
             }
 
-            string exportPath = Path.Combine(exportDir, "..", $"{modelName}.rbxm");
+            string exportPath = Path.Combine(rootWorkDir, modelDir, $"{modelName}.rbxm");
             exportModel.WorldPivotData = new CFrame();
             exportModel.PrimaryPart = largestPart;
+
             exportBlob.Save(exportPath);
+            Console.WriteLine($"\tWrote {exportPath}");
         }
 
         static void Main(string[] args)
@@ -394,16 +377,18 @@ namespace Source2Roblox
                         path = Console.ReadLine();
                     }
 
-                    var mdl = new ModelFile(path);
-                    // ObjMesher.BakeMDL(mdl, desktop);
-
                     try
                     {
+                        var mdl = new ModelFile(path);
                         BakeRbxm(mdl);
+
+                        ObjMesher.BakeMDL(mdl, exportDir);
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine($"Error! {e.Message} {e.StackTrace}");
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"\n{e}\n\n{e.StackTrace}\n");
+                        Console.ForegroundColor = ConsoleColor.Gray;
                     }
                 }
             }

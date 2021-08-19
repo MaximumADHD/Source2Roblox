@@ -12,14 +12,14 @@ using Source2Roblox.World.Types;
 
 using RobloxFiles.DataTypes;
 using ValveKeyValue;
+using Source2Roblox.Util;
 
 namespace Source2Roblox.Geometry
 {
     public static class ObjMesher
     {
         private const TextureFlags IGNORE = TextureFlags.Sky | TextureFlags.Trans | TextureFlags.Hint | TextureFlags.Skip | TextureFlags.Trigger;
-        private static readonly KVSerializer VmtHelper = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
-
+        
         private static string GetFileName(string path)
         {
             var info = new FileInfo(path);
@@ -85,42 +85,38 @@ namespace Source2Roblox.Geometry
 
                 var matInfo = new FileInfo(matPath);
                 string matName = matInfo.Name.Replace(".vmt", "");
-
-                string diffusePath = "",
-                       bumpPath = "";
-
-                bool noAlpha = true;
-
+                ValveMaterial vmt = null;
+                
                 if (GameMount.HasFile(matPath, game))
                 {
-                    using (var vmtStream = GameMount.OpenRead(matPath, game))
-                    {
-                        var vmt = VmtHelper.Deserialize(vmtStream);
-
-                        foreach (var entry in vmt)
-                            Program.ProcessVMT(entry, ref diffusePath, ref bumpPath, ref noAlpha);
-
-                        Program.SaveVTF(diffusePath, noAlpha, exportDir, game);
-                        Program.SaveVTF(bumpPath, true, exportDir, game);
-                    }
+                    vmt = new ValveMaterial(matPath, game);
+                    vmt.SaveVTF(vmt.DiffusePath, exportDir);
+                    vmt.SaveVTF(vmt.BumpPath, exportDir, true);
                 }
-                
+
+                string diffusePath = vmt?.DiffusePath;
                 objWriter.AppendLine($"\tg {matName}");
 
                 if (!string.IsNullOrEmpty(diffusePath))
                 {
-                    string diffuseName = GetFileName(diffusePath);
+                    string diffuse = diffusePath.Replace(".vtf", ".png");
+                    diffuse = Program.CleanPath(diffuse);
+
                     objWriter.AppendLine($"\tusemtl {matName}\n");
                     mtlWriter.AppendLine($"newmtl {matName}");
 
+                    string bumpPath = vmt.BumpPath;
+                    bool noAlpha = vmt.NoAlpha;
+
                     if (!string.IsNullOrEmpty(bumpPath))
                     {
-                        string bumpName = GetFileName(bumpPath);
-                        mtlWriter.AppendLine($"bump {bumpName}.png");
+                        string bump = bumpPath.Replace(".vtf", ".png");
+                        bump = Program.CleanPath(bump);
+                        mtlWriter.AppendLine($"bump {bump}");
                     }
-                        
-                    mtlWriter.AppendLine($"map_Kd {diffuseName}.png");
-                    mtlWriter.AppendLine(noAlpha ? "" : $"map_d  {diffuseName}.png\n");
+                    
+                    mtlWriter.AppendLine($"map_Kd {diffuse}");
+                    mtlWriter.AppendLine(noAlpha ? "" : $"map_d {diffuse}\n");
                 }
                 
                 for (int i = 0; i < mesh.NumIndices; i += 3)

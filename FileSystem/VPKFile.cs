@@ -49,7 +49,7 @@ namespace Source2Roblox.FileSystem
 
         public MemoryStream OpenRead(string path)
         {
-            path = path.ToLowerInvariant();
+            path = Program.CleanPath(path);
 
             if (!binaries.TryGetValue(path, out byte[] buffer))
             {

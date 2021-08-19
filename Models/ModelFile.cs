@@ -58,6 +58,7 @@ namespace Source2Roblox.Models
     public class ModelFile
     {
         public readonly GameMount Game;
+        public readonly string Location;
         public readonly ModelHeader Header;
         public readonly VertexData VertexData;
         public readonly TriangleData TriangleData;
@@ -477,6 +478,7 @@ namespace Source2Roblox.Models
 
             Game = game;
             Header = mdl;
+            Location = path;
             VertexData = vvd;
             TriangleData = vtx;
             Materials = materialPaths;
