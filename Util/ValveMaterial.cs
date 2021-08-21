@@ -46,7 +46,23 @@ namespace Source2Roblox.Util
 
             if (!handledFiles.TryGetValue(path, out Image bitmap))
             {
+                if (File.Exists(filePath))
+                {
+                    var preload = Image.FromFile(filePath);
+                    handledFiles.Add(filePath, preload);
+
+                    Console.WriteLine($"\tPreloaded {path}");
+                    return;
+                }
+
+                // TODO: Implement Pakfile Lump.
                 Console.WriteLine($"\tReading {path}");
+
+                if (!GameMount.HasFile(path, Game))
+                {
+                    Console.WriteLine($"\t\tImage not found!");
+                    return;
+                }
 
                 using (var vtfStream = GameMount.OpenRead(path, Game))
                 using (var vtfReader = new BinaryReader(vtfStream))
@@ -104,7 +120,19 @@ namespace Source2Roblox.Util
 
         public ValveMaterial(string path, GameMount game = null)
         {
+            if (!path.StartsWith("materials"))
+                path = "materials/" + path;
+
+            if (!path.EndsWith(".vmt"))
+                path += ".vmt";
+
             Game = game;
+
+            if (!GameMount.HasFile(path, game))
+            {
+                Console.WriteLine($"Failed to bind ValveMaterial for: {path}");
+                return;
+            }
 
             using (var stream = GameMount.OpenRead(path, game))
             {

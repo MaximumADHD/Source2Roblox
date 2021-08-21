@@ -8,10 +8,12 @@ namespace Source2Roblox.World
 {
     public class BSPFile
     {
+        public readonly string Name;
         public readonly string Header;
-        public readonly int Version;
 
+        public readonly int Version;
         public readonly int MapRevision;
+
         public readonly Lump[] Lumps = new Lump[64];
 
         public readonly Faces Faces;
@@ -116,6 +118,9 @@ namespace Source2Roblox.World
 
         public BSPFile(string path, GameMount game = null)
         {
+            var info = new FileInfo(path);
+            Name = info.Name.Replace(info.Extension, "");
+
             using (var stream = GameMount.OpenRead(path, game))
             using (var reader = new BinaryReader(stream))
             {

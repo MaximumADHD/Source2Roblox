@@ -59,7 +59,7 @@ namespace Source2Roblox.World.Lumps
                 if (next == 0)
                 {
                     string result = Encoding.UTF8.GetString(buffer.ToArray());
-                    Add(start, result);
+                    Add(start, result.ToLowerInvariant());
 
                     reading = false;
                     buffer.Clear();
@@ -79,7 +79,7 @@ namespace Source2Roblox.World.Lumps
             if (buffer.Count > 0)
             {
                 string result = Encoding.UTF8.GetString(buffer.ToArray());
-                Add(start, result);
+                Add(start, result.ToLowerInvariant());
             }
         }
     }

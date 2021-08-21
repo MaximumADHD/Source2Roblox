@@ -3,7 +3,7 @@ using System.IO;
 
 namespace Source2Roblox.World.Types
 {
-    public struct Face
+    public class Face
     {
         public ushort PlaneNum;
         public byte Side;
@@ -26,6 +26,9 @@ namespace Source2Roblox.World.Types
         public ushort NumPrimitives;
         public ushort FirstPrimitiveId;
         public uint SmoothingGroups;
+
+        public int FirstNorm;
+        public string Material;
 
         public Face(BinaryReader reader)
         {

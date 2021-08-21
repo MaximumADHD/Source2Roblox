@@ -43,6 +43,8 @@ namespace Source2Roblox.FileSystem
 
         private string GetRouting(string path)
         {
+            path = Program.CleanPath(path);
+
             if (Routing.TryGetValue(path, out string route))
                 return route;
 
@@ -109,6 +111,16 @@ namespace Source2Roblox.FileSystem
             return OpenRead(path);
         }
 
+        public static bool HasFile(string path, GameMount game = null)
+        {
+            game = game ?? Program.GameMount;
+
+            if (game != null)
+                return game.HasFile(path);
+
+            return File.Exists(path);
+        }
+
         public static Stream OpenRead(string path, GameMount game = null)
         {
             game = game ?? Program.GameMount;
@@ -119,14 +131,9 @@ namespace Source2Roblox.FileSystem
             return File.OpenRead(path);
         }
 
-        public static bool HasFile(string path, GameMount game = null)
+        public static string GetGameName(GameMount game = null)
         {
-            game = game ?? Program.GameMount;
-
-            if (game != null)
-                return game.HasFile(path);
-
-            return File.Exists(path);
+            return (game ?? Program.GameMount)?.GameName;
         }
     }
 }

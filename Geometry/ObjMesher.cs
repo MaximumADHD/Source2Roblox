@@ -13,6 +13,7 @@ using Source2Roblox.World.Types;
 using RobloxFiles.DataTypes;
 using ValveKeyValue;
 using Source2Roblox.Util;
+using System.Diagnostics;
 
 namespace Source2Roblox.Geometry
 {
@@ -20,12 +21,6 @@ namespace Source2Roblox.Geometry
     {
         private const TextureFlags IGNORE = TextureFlags.Sky | TextureFlags.Trans | TextureFlags.Hint | TextureFlags.Skip | TextureFlags.Trigger;
         
-        private static string GetFileName(string path)
-        {
-            var info = new FileInfo(path);
-            return info.Name.Replace(info.Extension, "");
-        }
-
         public static void BakeMDL(ModelFile model, string exportDir, int skin = 0, int lod = 0, int subModel = 0)
         {
             var game = model.Game;
@@ -149,18 +144,22 @@ namespace Source2Roblox.Geometry
             Console.WriteLine($"\tWrote: {mtlPath}");
         }
 
-        public static string BakeBSP(BSPFile bsp)
+        public static void BakeBSP(BSPFile bsp, string exportDir, GameMount game = null)
         {
-            var writer = new StringBuilder();
+            string gameName = GameMount.GetGameName(game);
+            string mapName = bsp.Name;
+
+            var objWriter = new StringBuilder();
+            var mtlWriter = new StringBuilder();
 
             foreach (Vector3 vert in bsp.Vertices)
             {
                 var v = vert / 10f;
-                writer.AppendLine($"v {v.X} {v.Z} {-v.Y}");
+                objWriter.AppendLine($"v {v.X} {v.Z} {-v.Y}");
             }
 
             foreach (Vector3 norm in bsp.VertNormals)
-                writer.AppendLine($"vn {norm.X} {norm.Z} {-norm.Y}");
+                objWriter.AppendLine($"vn {norm.X} {norm.Z} {-norm.Y}");
 
             var edges = bsp.Edges;
             var surfEdges = bsp.SurfEdges;
@@ -180,7 +179,9 @@ namespace Source2Roblox.Geometry
                 vertIndices.Add(edge);
             }
 
-            int normBaseIndex = 0;
+            int normBaseId = 0;
+            var materialSets = new Dictionary<string, ValveMaterial>();
+            var facesByMaterial = new Dictionary<string, List<Face>>();
 
             foreach (Face face in bsp.Faces)
             {
@@ -189,8 +190,8 @@ namespace Source2Roblox.Geometry
                 int numEdges = face.NumEdges;
                 int firstEdge = face.FirstEdge;
 
-                int firstNorm = normBaseIndex;
-                normBaseIndex += numEdges;
+                face.FirstNorm = normBaseId;
+                normBaseId += numEdges;
 
                 var texInfo = bsp.TexInfo[face.TexInfo];
                 var flags = texInfo.Flags;
@@ -198,19 +199,95 @@ namespace Source2Roblox.Geometry
                 if ((flags & IGNORE) != TextureFlags.None)
                     continue;
 
-                writer.Append("f");
+                var texData = bsp.TexData[texInfo.TextureData];
+                int stringIndex = texData.StringTableIndex;
 
-                for (int i = 0; i < numEdges; i++)
+                var matIndex = bsp.TexDataStringTable[stringIndex];
+                var material = bsp.TexDataStringData[matIndex];
+
+                if (material.StartsWith($"maps/{mapName}"))
                 {
-                    var vertIndex = 1 + vertIndices[firstEdge + i];
-                    var normIndex = 1 + normIndices[firstNorm + i];
-                    writer.Append($" {vertIndex}//{normIndex}");
+                    while (true)
+                    {
+                        var lastUnderscore = material.LastIndexOf('_');
+
+                        if (lastUnderscore < 0)
+                            break;
+
+                        string number = material.Substring(lastUnderscore + 1);
+
+                        if (int.TryParse(number, out int _))
+                        {
+                            material = material.Substring(0, lastUnderscore);
+                            continue;
+                        }
+
+                        material = material.Replace($"maps/{mapName}/", "");
+                        break;
+                    }
+                    
                 }
 
-                writer.AppendLine();
+                if (!materialSets.ContainsKey(material))
+                {
+                    var saveInfo = new FileInfo(material);
+                    string saveDir = saveInfo.DirectoryName;
+
+                    Directory.CreateDirectory(saveDir);
+                    Console.WriteLine($"Fetching material {material}");
+
+                    var vmt = new ValveMaterial(material, game);
+                    materialSets[material] = vmt;
+
+                    if (!string.IsNullOrEmpty(vmt.BumpPath))
+                        vmt.SaveVTF(vmt.BumpPath, exportDir);
+
+                    if (!string.IsNullOrEmpty(vmt.DiffusePath))
+                        vmt.SaveVTF(vmt.DiffusePath, exportDir);
+
+                    facesByMaterial[material] = new List<Face>();
+                }
+
+                facesByMaterial[material].Add(face);
             }
 
-            return writer.ToString();
+            int numFaces = 0;
+            string objPath = Path.Combine(exportDir, $"{mapName}.obj");
+            string mtlPath = Path.Combine(exportDir, $"{mapName}.mtl");
+
+            foreach (string material in facesByMaterial.Keys)
+            {
+                var faces = facesByMaterial[material];
+                objWriter.AppendLine($"\nusemtl {material}");
+                
+                foreach (var face in faces)
+                {
+                    int numEdges  = face.NumEdges,
+                        firstEdge = face.FirstEdge,
+                        firstNorm = face.FirstNorm;
+
+                    // objWriter.AppendLine($"  g face_{numFaces++}");
+                    objWriter.Append("  f");
+
+                    for (int i = 0; i < numEdges; i++)
+                    {
+                        var vertIndex = 1 + vertIndices[firstEdge + i];
+                        var normIndex = 1 + normIndices[firstNorm + i];
+                        objWriter.Append($" {vertIndex}//{normIndex}");
+                    }
+
+                    objWriter.AppendLine();
+                }
+
+                mtlWriter.AppendLine($"newmtl {material}");
+                mtlWriter.AppendLine($"map_Kd materials/{material}.png\n");
+            }
+
+            string obj = objWriter.ToString();
+            File.WriteAllText(objPath, obj);
+
+            string mtl = mtlWriter.ToString();
+            File.WriteAllText(mtlPath, mtl);
         }
     }
 }

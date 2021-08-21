@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -13,22 +12,6 @@ using Source2Roblox.Models;
 
 namespace Source2Roblox.Geometry
 {
-    public class RobloxBone : Instance
-    {
-        public int NameIndex;
-
-        public short Id;
-        public short ParentId;
-
-        public float Unknown;
-        public CFrame CFrame;
-
-        public override string ToString()
-        {
-            return $"[Bone: {Name}]";
-        }
-    }
-
     public class RobloxVertex
     {
         public Vector3 Position;
@@ -36,7 +19,7 @@ namespace Source2Roblox.Geometry
         public Vector3 UV;
 
         public Color? Color;
-        public MeshBoneWeights? Weights;
+        public BoneWeights? Weights;
 
         public static implicit operator StudioVertex(RobloxVertex vertex)
         {
@@ -62,7 +45,7 @@ namespace Source2Roblox.Geometry
         }
     }
 
-    public class RobloxSkinning
+    public class Skinning
     {
         public uint FacesIndex;
         public uint FacesLength;
@@ -71,21 +54,13 @@ namespace Source2Roblox.Geometry
         public uint VertsLength;
 
         public uint NumBones;
-        public ushort[] BoneIndexTree;
+        public ushort[] BoneIndices;
     }
 
-    public struct MeshBoneWeights
+    public struct BoneWeights
     {
         public byte[] Bones;
         public byte[] Weights;
-
-        public override string ToString()
-        {
-            var bones = string.Join(", ", Bones);
-            var weights = string.Join(", ", Weights);
-
-            return $"{{Bones: [{bones}] | Weights: [{weights}]}}";
-        }
     }
 
     public class RobloxMesh
@@ -103,10 +78,10 @@ namespace Source2Roblox.Geometry
         public List<int> LODs;
 
         public int NumBones = 0;
-        public List<RobloxBone> Bones;
+        public List<Bone> Bones;
 
         public int NumSkinning = 0;
-        public List<RobloxSkinning> Skinning;
+        public List<Skinning> Skinning;
 
         public int NameTableSize = 0;
         public byte[] NameTable;
@@ -219,9 +194,9 @@ namespace Source2Roblox.Geometry
 
             mesh.LODs = new List<int>();
             mesh.Faces = new List<int[]>();
-            mesh.Bones = new List<RobloxBone>();
+            mesh.Bones = new List<Bone>();
             mesh.Verts = new List<RobloxVertex>();
-            mesh.Skinning = new List<RobloxSkinning>();
+            mesh.Skinning = new List<Skinning>();
 
             // Read Vertices
             for (int i = 0; i < mesh.NumVerts; i++)
@@ -252,7 +227,7 @@ namespace Source2Roblox.Geometry
                 {
                     var vert = mesh.Verts[i];
 
-                    var weights = new MeshBoneWeights()
+                    var weights = new BoneWeights()
                     {
                         Bones = reader.ReadBytes(4),
                         Weights = reader.ReadBytes(4)
@@ -289,15 +264,14 @@ namespace Source2Roblox.Geometry
                 for (int i = 0; i < mesh.NumBones; i++)
                 {
                     float[] cf = new float[12];
+                    int nameIndex = reader.ReadInt32();
 
-                    var bone = new RobloxBone()
-                    {
-                        NameIndex = reader.ReadInt32(),
-                        Id = reader.ReadInt16(),
+                    short _ = reader.ReadInt16(),
+                          parent = reader.ReadInt16();
 
-                        ParentId = reader.ReadInt16(),
-                        Unknown = reader.ReadSingle()
-                    };
+                    var bone = new Bone();
+                    bone.SetAttribute<float>("ParentId", parent);
+                    bone.SetAttribute<float>("NameIndex", nameIndex);
 
                     for (int m = 0; m < 12; m++)
                     {
@@ -307,16 +281,28 @@ namespace Source2Roblox.Geometry
 
                     bone.CFrame = new CFrame(cf);
                     mesh.Bones.Add(bone);
+                    reader.Skip(4);
                 }
 
                 // Read Bone Names & Parents
                 var nameTable = reader.ReadBytes(mesh.NameTableSize);
                 mesh.NameTable = nameTable;
 
-                foreach (RobloxBone bone in mesh.Bones)
+                foreach (Bone bone in mesh.Bones)
                 {
-                    int index = bone.NameIndex;
-                    int parentId = bone.ParentId;
+                    int index;
+                    int parentId;
+
+                    if (bone.GetAttribute("NameIndex", out float fIndex))
+                        index = (int)fIndex;
+                    else
+                        continue;
+
+                    if (bone.GetAttribute("ParentId", out float fParent))
+                        parentId = (int)fParent;
+                    else
+                        continue;
+
                     var buffer = new List<byte>();
 
                     while (true)
@@ -344,7 +330,7 @@ namespace Source2Roblox.Geometry
                 // Read Skinning
                 for (int p = 0; p < mesh.NumSkinning; p++)
                 {
-                    var skinData = new RobloxSkinning()
+                    var skinning = new Skinning()
                     {
                         FacesIndex = reader.ReadUInt32(),
                         FacesLength = reader.ReadUInt32(),
@@ -353,13 +339,13 @@ namespace Source2Roblox.Geometry
                         VertsLength = reader.ReadUInt32(),
 
                         NumBones = reader.ReadUInt32(),
-                        BoneIndexTree = new ushort[26]
+                        BoneIndices = new ushort[26]
                     };
 
                     for (int i = 0; i < 26; i++)
-                        skinData.BoneIndexTree[i] = reader.ReadUInt16();
+                        skinning.BoneIndices[i] = reader.ReadUInt16();
 
-                    mesh.Skinning.Add(skinData);
+                    mesh.Skinning.Add(skinning);
                 }
             }
         }

@@ -395,11 +395,11 @@ namespace Source2Roblox
 
             if (mapName != null)
             {
-                var bsp = new BSPFile($"maps/{mapName}.bsp");
-                string obj = ObjMesher.BakeBSP(bsp);
+                string exportDir = Path.Combine(desktop, "SourceMaps", GameMount.GameName);
+                Directory.CreateDirectory(exportDir);
 
-                Console.WriteLine(obj);
-                Debugger.Break();
+                var bsp = new BSPFile($"maps/{mapName}.bsp");
+                ObjMesher.BakeBSP(bsp, exportDir);
             }
 
             Console.WriteLine("Press any key to continue...");
