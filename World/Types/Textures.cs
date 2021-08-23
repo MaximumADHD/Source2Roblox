@@ -57,14 +57,25 @@ namespace Source2Roblox.World.Types
 
         public Texel(BinaryReader reader)
         {
-            Vector3 v0 = reader.ReadVector3();
-            float f0 = reader.ReadSingle();
+            Vector3 vec0 = reader.ReadVector3();
+            float off0 = reader.ReadSingle();
 
-            Vector3 v1 = reader.ReadVector3();
-            float f1 = reader.ReadSingle();
+            Vector3 vec1 = reader.ReadVector3();
+            float off1 = reader.ReadSingle();
 
-            S = new TextureVector(v0, f0);
-            T = new TextureVector(v1, f1);
+            S = new TextureVector(vec0, off0);
+            T = new TextureVector(vec1, off1);
+        }
+
+        public Vector2 CalcTexCoord(Vector3 v, Vector2 size = null)
+        {
+            if (size == null)
+                size = new Vector2(1, 1);
+
+            float x = v.Dot(S) + S.Offset,
+                  y = v.Dot(T) + T.Offset;
+
+            return new Vector2(x, y) / size;
         }
     }
 

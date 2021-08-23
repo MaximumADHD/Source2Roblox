@@ -37,6 +37,7 @@ namespace Source2Roblox.World
 
         public readonly List<int> SurfEdges = new List<int>();
         public readonly List<BrushSide> BrushSides = new List<BrushSide>();
+        public readonly List<BrushModel> BrushModels = new List<BrushModel>();
 
         public readonly List<Vector3> VertNormals = new List<Vector3>();
         public readonly List<DispInfo> Displacements = new List<DispInfo>();
@@ -147,6 +148,11 @@ namespace Source2Roblox.World
                         case LumpType.SurfEdges:
                         {
                             reader.ReadToEnd(SurfEdges, reader.ReadInt32);
+                            break;
+                        }
+                        case LumpType.Models:
+                        {
+                            reader.ReadToEnd(BrushModels);
                             break;
                         }
                         case LumpType.Brushes:

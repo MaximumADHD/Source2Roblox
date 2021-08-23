@@ -27,6 +27,8 @@ namespace Source2Roblox.World.Types
         public ushort FirstPrimitiveId;
         public uint SmoothingGroups;
 
+        public int FirstUV;
+        public int FirstVert;
         public int FirstNorm;
         public string Material;
 

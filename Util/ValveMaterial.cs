@@ -22,10 +22,10 @@ namespace Source2Roblox.Util
         public string IrisPath;
         public bool NoAlpha;
 
-        public void SaveVTF(string path, string rootDir, bool? noAlpha = null)
+        public Image SaveVTF(string path, string rootDir, bool? noAlpha = null)
         {
             if (string.IsNullOrEmpty(path))
-                return;
+                return null;
 
             var info = new FileInfo(path);
 
@@ -42,7 +42,7 @@ namespace Source2Roblox.Util
                 .Replace(".vtf", ".png");
 
             if (handledFiles.ContainsKey(filePath))
-                return;
+                return handledFiles[filePath];
 
             if (!handledFiles.TryGetValue(path, out Image bitmap))
             {
@@ -52,7 +52,7 @@ namespace Source2Roblox.Util
                     handledFiles.Add(filePath, preload);
 
                     Console.WriteLine($"\tPreloaded {path}");
-                    return;
+                    return preload;
                 }
 
                 // TODO: Implement Pakfile Lump.
@@ -61,7 +61,7 @@ namespace Source2Roblox.Util
                 if (!GameMount.HasFile(path, Game))
                 {
                     Console.WriteLine($"\t\tImage not found!");
-                    return;
+                    return null;
                 }
 
                 using (var vtfStream = GameMount.OpenRead(path, Game))
@@ -78,6 +78,7 @@ namespace Source2Roblox.Util
             handledFiles[filePath] = bitmap;
 
             Console.WriteLine($"\tWrote {filePath}");
+            return bitmap;
         }
 
         private void ReadEntry(KVObject entry)
