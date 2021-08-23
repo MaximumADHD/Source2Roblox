@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Source2Roblox.FileSystem
 {
-    public struct VPKEntryChunk
+    public class VPKEntryChunk
     {
         public readonly ushort PackFileIndex;
         public readonly uint ChunkOffset;
@@ -22,7 +22,7 @@ namespace Source2Roblox.FileSystem
     {
         public readonly List<VPKEntryChunk> Chunks;
 
-        private VPKEntryChunk? Chunk0
+        private VPKEntryChunk Chunk0
         {
             get
             {
@@ -34,21 +34,17 @@ namespace Source2Roblox.FileSystem
         }
 
         public bool HasData => Chunks.Any();
-        public readonly string Path;
         public readonly uint CRC;
 
         public ushort Index => Chunk0?.PackFileIndex ?? 0;
         public uint Offset => Chunk0?.ChunkOffset ?? 0;
         public uint Size => Chunk0?.ChunkSize ?? 0;
 
-        public override string ToString() => $"{Path}";
-        
-        public VPKEntry(string path, BinaryReader reader)
+        public VPKEntry(BinaryReader reader)
         {
-            Path = path;
             CRC = reader.ReadUInt32();
             
-            var preloadBytes = reader.ReadUInt16();
+            var skip = reader.ReadUInt16();
             Chunks = new List<VPKEntryChunk>();
             
             while (true)
@@ -65,7 +61,7 @@ namespace Source2Roblox.FileSystem
                 Chunks.Add(chunk);
             }
 
-            reader.Skip(preloadBytes);
+            reader.Skip(skip);
         }
     }
 }

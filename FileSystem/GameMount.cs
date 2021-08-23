@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Source2Roblox.FileSystem
@@ -20,6 +21,8 @@ namespace Source2Roblox.FileSystem
             Mounts = new Dictionary<string, VPKFile>();
             Routing = new Dictionary<string, string>();
 
+            Console.WriteLine($"Loading game mount {gameDir}...");
+
             foreach (string file in Directory.GetFiles(gameDir))
             {
                 var fileInfo = new FileInfo(file);
@@ -34,11 +37,14 @@ namespace Source2Roblox.FileSystem
                 else
                     continue;
 
+                Console.WriteLine($"\tMounting {fileInfo.Name}...");
                 var vpk = new VPKFile(path);
-                string name = vpk.ToString();
 
+                string name = vpk.ToString();
                 Mounts.Add(name, vpk);
             }
+
+            Console.WriteLine("Ready!");
         }
 
         private string GetRouting(string path)

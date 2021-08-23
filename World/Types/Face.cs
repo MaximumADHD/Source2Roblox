@@ -47,8 +47,8 @@ namespace Source2Roblox.World.Types
             LightOffset = reader.ReadInt32();
             Area = reader.ReadSingle();
 
-            LightmapTextureMinsInLuxels = reader.ReadIntVector2();
-            LightmapTextureSizeInLuxels = reader.ReadIntVector2();
+            LightmapTextureMinsInLuxels = reader.ReadVector2Int32();
+            LightmapTextureSizeInLuxels = reader.ReadVector2Int32();
             
             OriginalFace = reader.ReadInt32();
             NumPrimitives = reader.ReadUInt16();

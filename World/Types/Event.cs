@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Source2Roblox.World.Types
+﻿namespace Source2Roblox.World.Types
 {
     public struct Event
     {

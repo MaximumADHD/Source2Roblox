@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-
 using RobloxFiles.DataTypes;
 
 namespace Source2Roblox.World.Types
@@ -100,8 +99,8 @@ namespace Source2Roblox.World.Types
             Reflectivity = reader.ReadVector3();
             StringTableIndex = reader.ReadInt32();
 
-            Size = reader.ReadIntVector2();
-            ViewSize = reader.ReadIntVector2();
+            Size = reader.ReadVector2Int32();
+            ViewSize = reader.ReadVector2Int32();
         }
     }
 }

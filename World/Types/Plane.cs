@@ -1,5 +1,6 @@
 ﻿using RobloxFiles.DataTypes;
 using RobloxFiles.Enums;
+using System.IO;
 
 namespace Source2Roblox.World.Types
 {
@@ -14,6 +15,13 @@ namespace Source2Roblox.World.Types
             Normal = normal.Unit;
             Dist = dist;
             Axis = axis;
+        }
+
+        public Plane(BinaryReader reader)
+        {
+            Normal = reader.ReadVector3();
+            Dist = reader.ReadSingle();
+            Axis = (Axis)reader.ReadInt32();
         }
 
         public override string ToString()

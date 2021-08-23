@@ -5,9 +5,13 @@ using System.Text;
 
 using RobloxFiles.DataTypes;
 using Microsoft.Win32;
+using System.Diagnostics;
+using System.Reflection;
 
 public static class Extensions
 {
+    private static readonly Type BinaryReader = typeof(BinaryReader);
+    
     public static void Skip(this BinaryReader reader, int bytes)
     {
         var stream = reader.BaseStream;
@@ -20,10 +24,40 @@ public static class Extensions
         stream.Position = position;
     }
 
-    public static Action SetWaypoint(this BinaryReader reader)
+    public static ConstructorInfo GetConstructor(this Type type, params Type[] args)
     {
-        long pos = reader.BaseStream.Position;
-        return new Action(() => JumpTo(reader, pos));
+        return type.GetConstructor(args);
+    }
+
+    public static T Invoke<T>(this ConstructorInfo constructor, params object[] args)
+    {
+        return (T)constructor.Invoke(args);
+    }
+
+    public static void ReadToEnd<T>(this BinaryReader reader, List<T> list, Func<T> readNext = null)
+    {
+        var type = typeof(T);
+        var stream = reader.BaseStream;
+
+        if (readNext == null)
+        {
+            // this variable is fine, don't know 
+            // what intellisense is on about...
+
+            #pragma warning disable IDE0059 
+            var construct = type.GetConstructor(BinaryReader);
+
+            #pragma warning restore IDE0059
+            readNext = new Func<T>(() => construct.Invoke<T>(reader));
+        }
+
+        Debug.Assert(readNext != null, $"No constructor for {type.Name} takes a BinaryReader!");
+
+        while (stream.Position < stream.Length)
+        {
+            var inst = readNext();
+            list.Add(inst);
+        }
     }
 
     public static Vector3 ReadVector3(this BinaryReader reader)
@@ -35,14 +69,6 @@ public static class Extensions
         return new Vector3(x, y, z);
     }
 
-    public static Vector2 ReadIntVector2(this BinaryReader reader)
-    {
-        int x = reader.ReadInt32(),
-            y = reader.ReadInt32();
-
-        return new Vector2(x, y);
-    }
-
     public static Vector2 ReadVector2(this BinaryReader reader)
     {
         float x = reader.ReadSingle(),
@@ -51,44 +77,40 @@ public static class Extensions
         return new Vector2(x, y);
     }
 
+    public static Vector2 ReadVector2Int32(this BinaryReader reader)
+    {
+        int x = reader.ReadInt32(),
+            y = reader.ReadInt32();
+
+        return new Vector2(x, y);
+    }
+
     public static string ReadString(this BinaryReader reader, int? length, Encoding encoding = null)
     {
         var stream = reader.BaseStream;
-        var buffer = new List<byte>();
-        int len = length ?? -1;
-
-        while (stream.Position < stream.Length)
+        long len = length ?? -1;
+        
+        if (len <= 0)
         {
-            if (len >= 0 && buffer.Count >= len)
-                break;
+            var start = stream.Position;
 
-            byte next = reader.ReadByte();
+            while (reader.PeekChar() > 0)
+                stream.Position++;
 
-            if (next == 0 && length == null)
-                break;
-
-            buffer.Add(next);
+            len = stream.Position - start + 1;
+            stream.Position = start;
         }
 
-        // Remove trailing null bytes
-
-        for (int i = buffer.Count - 1; i >= 0; i--)
-        {
-            byte last = buffer[i];
-
-            if (last != 0)
-                break;
-
-            buffer.RemoveAt(i);
-        }
-
-        // Convert to UTF-8
-        var bytes = buffer.ToArray();
+        byte[] buffer = reader.ReadBytes((int)len);
 
         if (encoding == null)
             encoding = Encoding.UTF8;
-        
-        return encoding.GetString(bytes);
+
+        string result = encoding
+            .GetString(buffer)
+            .TrimEnd('\0');
+
+        return result;
     }
 
     public static RegistryKey GetSubKey(this RegistryKey key, params string[] path)

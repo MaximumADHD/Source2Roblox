@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace Source2Roblox.World.Types
 {
     [Flags]
-    public enum DispTriangleTags
+    public enum DispTriTags
     {
         None = 0,
         Surface = 1,

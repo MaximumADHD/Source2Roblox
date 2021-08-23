@@ -309,11 +309,8 @@ namespace Source2Roblox
             if (gameDir == null)
                 return;
 
-            Console.Write($"Loading game mount: {gameDir}... ");
-            GameMount = new GameMount(gameDir);
-
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            Console.WriteLine("Ready!");
+            GameMount = new GameMount(gameDir);
 
             if (vtfName != null)
             {

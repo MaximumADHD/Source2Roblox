@@ -225,7 +225,6 @@ namespace Source2Roblox.Geometry
                         material = material.Replace($"maps/{mapName}/", "");
                         break;
                     }
-                    
                 }
 
                 if (!materialSets.ContainsKey(material))
