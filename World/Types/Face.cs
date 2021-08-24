@@ -32,6 +32,10 @@ namespace Source2Roblox.World.Types
         public int FirstNorm;
         public string Material;
 
+        public override string ToString()
+        {
+            return $"{Material ?? ""}";
+        }
         public Face(BinaryReader reader)
         {
             PlaneNum = reader.ReadUInt16();

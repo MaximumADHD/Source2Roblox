@@ -224,12 +224,35 @@ namespace Source2Roblox.Geometry
                 model.BoundsMax += offset;
             }
 
-            foreach (Face face in bsp.Faces)
+            foreach (var face in bsp.Faces)
+            {
+                var numEdges = face.NumEdges;
+                face.FirstNorm = numNorms;
+                
+                var texInfo = bsp.TexInfo[face.TexInfo];
+                var texData = bsp.TexData[texInfo.TextureData];
+
+                int stringIndex = texData.StringTableIndex;
+                var matIndex = bsp.TexDataStringTable[stringIndex];
+
+                face.Material = bsp.TexDataStringData[matIndex];
+                numNorms += numEdges;
+            }
+
+            foreach (Vector3 norm in bsp.VertNormals)
+                objWriter.AppendLine($"vn {norm.X} {norm.Z} {-norm.Y}");
+
+            var faces = bsp.Faces.OrderBy(face => face.Material);
+            objWriter.AppendLine();
+
+            foreach (Face face in faces)
             {
                 int planeId = face.PlaneNum;
                 int dispInfo = face.DispInfo;
                 int numEdges = face.NumEdges;
+
                 int firstEdge = face.FirstEdge;
+                int firstNorm = face.FirstNorm;
 
                 var texInfo = bsp.TexInfo[face.TexInfo];
                 var flags = texInfo.Flags;
@@ -303,7 +326,7 @@ namespace Source2Roblox.Geometry
                 for (int i = numEdges - 1; i >= 0; i--)
                 {
                     var vertIndex = (int)vertIndices[firstEdge + i];
-                    var normIndex = (int)normIndices[numNorms + i];
+                    var normIndex = (int)normIndices[firstNorm + i];
 
                     var norm = bsp.VertNormals[normIndex];
                     var vert = bsp.Vertices[vertIndex];
@@ -315,17 +338,14 @@ namespace Source2Roblox.Geometry
                     vert /= 10f;
 
                     objWriter.AppendLine($"v {vert.X} {vert.Z} {-vert.Y}");
-                    objWriter.AppendLine($"vn {norm.X} {norm.Z} {-norm.Y}");
                     objWriter.AppendLine($"vt {uv.X} {1f - uv.Y}\n");
                 }
 
                 face.FirstUV = numUVs;
                 face.FirstVert = numVerts;
-                face.FirstNorm = numNorms;
 
                 numUVs += numEdges;
                 numVerts += numEdges;
-                numNorms += numEdges;
 
                 facesByMaterial[material].Add(face);
             }
@@ -335,10 +355,10 @@ namespace Source2Roblox.Geometry
 
             foreach (string material in facesByMaterial.Keys)
             {
-                var faces = facesByMaterial[material];
+                var faceSet = facesByMaterial[material];
                 objWriter.AppendLine($"\nusemtl {material}");
                 
-                foreach (var face in faces)
+                foreach (var face in faceSet)
                 {
                     int numEdges  = face.NumEdges,
                         firstVert = face.FirstVert,
