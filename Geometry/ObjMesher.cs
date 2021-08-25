@@ -6,12 +6,10 @@ using System.Text;
 
 using Source2Roblox.FileSystem;
 using Source2Roblox.Models;
-using Source2Roblox.Textures;
 using Source2Roblox.World;
 using Source2Roblox.World.Types;
 
 using RobloxFiles.DataTypes;
-using ValveKeyValue;
 using Source2Roblox.Util;
 using System.Diagnostics;
 
@@ -19,7 +17,7 @@ namespace Source2Roblox.Geometry
 {
     public static class ObjMesher
     {
-        private const TextureFlags IGNORE = TextureFlags.Hint | TextureFlags.Skip | TextureFlags.Sky;
+        private const TextureFlags IGNORE = TextureFlags.Hint | TextureFlags.Skip | TextureFlags.Sky | TextureFlags.Trigger;
         
         public static void BakeMDL(ModelFile model, string exportDir, int skin = 0, int lod = 0, int subModel = 0)
         {
@@ -145,11 +143,11 @@ namespace Source2Roblox.Geometry
 
         public static void BakeBSP(BSPFile bsp, string exportDir, GameMount game = null)
         {
+            string mapName = bsp.Name;
+
             var objWriter = new StringBuilder();
             var mtlWriter = new StringBuilder();
 
-            string mapName = bsp.Name;
-          
             var edges = bsp.Edges;
             var surfEdges = bsp.SurfEdges;
 
@@ -167,6 +165,10 @@ namespace Source2Roblox.Geometry
 
                 vertIndices.Add(edge);
             }
+
+            var uvs = new List<Vector2>();
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
 
             int numUVs = 0;
             int numVerts = 0;
@@ -239,11 +241,9 @@ namespace Source2Roblox.Geometry
                 numNorms += numEdges;
             }
 
-            foreach (Vector3 norm in bsp.VertNormals)
-                objWriter.AppendLine($"vn {norm.X} {norm.Z} {-norm.Y}");
-
             var faces = bsp.Faces.OrderBy(face => face.Material);
             objWriter.AppendLine();
+            numNorms = 0;
 
             foreach (Face face in faces)
             {
@@ -255,16 +255,19 @@ namespace Source2Roblox.Geometry
                 int firstNorm = face.FirstNorm;
 
                 var texInfo = bsp.TexInfo[face.TexInfo];
+                var texData = bsp.TexData[texInfo.TextureData];
+
+                var texel = texInfo.TextureVecs;
+                var size = texData.Size;
+                
+                var material = face.Material;
                 var flags = texInfo.Flags;
 
                 if ((flags & IGNORE) != TextureFlags.None)
                     continue;
 
-                var texData = bsp.TexData[texInfo.TextureData];
-                int stringIndex = texData.StringTableIndex;
-
-                var matIndex = bsp.TexDataStringTable[stringIndex];
-                var material = bsp.TexDataStringData[matIndex];
+                if (material.ToLowerInvariant() == "tools/toolstrigger")
+                    continue;
 
                 if (material.StartsWith($"maps/{mapName}"))
                 {
@@ -320,31 +323,102 @@ namespace Source2Roblox.Geometry
                     facesByMaterial[material] = new List<Face>();
                 }
 
-                var texel = texInfo.TextureVecs;
-                var size = texData.Size;
-
-                for (int i = numEdges - 1; i >= 0; i--)
+                if (face.DispInfo >= 0)
                 {
-                    var vertIndex = (int)vertIndices[firstEdge + i];
-                    var normIndex = (int)normIndices[firstNorm + i];
+                    var disp = bsp.Displacements[dispInfo];
+                    Debug.Assert(face.NumEdges == 4);
 
-                    var norm = bsp.VertNormals[normIndex];
-                    var vert = bsp.Vertices[vertIndex];
+                    var corners = new Vector3[4];
+                    var startPos = disp.StartPosition;
 
-                    if (vertOffsets.ContainsKey(vertIndex))
-                        vert += vertOffsets[vertIndex];
+                    var bestDist = float.MaxValue;
+                    var bestIndex = -1;
 
-                    var uv = texel.CalcTexCoord(vert, size);
-                    vert /= 10f;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        var vertIndex = (int)vertIndices[firstEdge + i];
+                        var vertex = bsp.Vertices[vertIndex];
 
-                    objWriter.AppendLine($"v {vert.X} {vert.Z} {-vert.Y}");
-                    objWriter.AppendLine($"vt {uv.X} {1f - uv.Y}\n");
+                        var dist = (vertex - startPos).Magnitude;
+                        corners[i] = vertex;
+
+                        if (dist < bestDist)
+                        {
+                            bestDist = dist;
+                            bestIndex = i;
+                        }
+                    }
+
+                    // Rotate the corners so the startPos
+                    // is first in line in the loop.
+
+                    if (bestIndex != 0)
+                    {
+                        var leftHalf = corners.Skip(bestIndex);
+                        var rightHalf = corners.Take(bestIndex);
+
+                        var slice = leftHalf.Concat(rightHalf);
+                        corners = slice.ToArray();
+                    }
+
+                    var dispSize = (1 << disp.Power) + 1;
+                    numEdges = (dispSize * dispSize);
+
+                    var dispVerts = new List<Vector3>();
+                    var dispNorms = new List<Vector3>();
+                    var dispUVs = new List<Vector2>();
+
+                    for (int y = 0; y < dispSize; y++)
+                    {
+                        var rowSample = (float)y / (dispSize - 1);
+                        var rowStart = corners[0].Lerp(corners[1], rowSample);
+                        var rowEnd = corners[3].Lerp(corners[2], rowSample);
+
+                        for (int x = 0; x < dispSize; x++)
+                        {
+                            var colSample = (float)x / (dispSize - 1);
+                            var i = disp.DispVertStart + (y * dispSize) + x;
+                            
+                            var pos = rowStart.Lerp(rowEnd, colSample);
+                            var uv = texel.CalcTexCoord(pos, size);
+
+                            var dispVert = bsp.DispVerts[i];
+                            pos += dispVert.Vector * dispVert.Dist;
+
+                            norms.Add(pos.Unit); // TODO
+                            verts.Add(pos);
+                            uvs.Add(uv);
+                        }
+                    }
+
+                    face.NumEdges = (short)numEdges;
+                }
+                else
+                {
+                    for (int i = numEdges - 1; i >= 0; i--)
+                    {
+                        var vertIndex = (int)vertIndices[firstEdge + i];
+                        var normIndex = (int)normIndices[firstNorm + i];
+
+                        var vert = bsp.Vertices[vertIndex];
+                        var norm = bsp.VertNormals[normIndex];
+                        var uv = texel.CalcTexCoord(vert, size);
+
+                        if (vertOffsets.ContainsKey(vertIndex))
+                            vert += vertOffsets[vertIndex];
+
+                        verts.Add(vert);
+                        norms.Add(norm);
+                        uvs.Add(uv);
+                    }
                 }
 
                 face.FirstUV = numUVs;
+                face.FirstNorm = numNorms;
                 face.FirstVert = numVerts;
-
+                
                 numUVs += numEdges;
+                numNorms += numEdges;
                 numVerts += numEdges;
 
                 facesByMaterial[material].Add(face);
@@ -353,6 +427,18 @@ namespace Source2Roblox.Geometry
             string objPath = Path.Combine(exportDir, $"{mapName}.obj");
             string mtlPath = Path.Combine(exportDir, $"{mapName}.mtl");
 
+            foreach (var vertex in verts)
+            {
+                var v = vertex / 10f;
+                objWriter.AppendLine($"v {v.X} {-v.Z} {v.Y}");
+            }
+
+            foreach (var norm in norms)
+                objWriter.AppendLine($"vn {norm.X} {-norm.Z} {norm.Y}");
+
+            foreach (var uv in uvs)
+                objWriter.AppendLine($"vt {uv.X} {1f - uv.Y}");
+
             foreach (string material in facesByMaterial.Keys)
             {
                 var faceSet = facesByMaterial[material];
@@ -360,22 +446,51 @@ namespace Source2Roblox.Geometry
                 
                 foreach (var face in faceSet)
                 {
-                    int numEdges  = face.NumEdges,
+                    int dispInfo  = face.DispInfo,
+                        numEdges  = face.NumEdges,
                         firstVert = face.FirstVert,
                         firstNorm = face.FirstNorm,
                         firstUV   = face.FirstUV;
 
-                    objWriter.Append("  f");
-
-                    for (int i = 0; i < numEdges; i++)
+                    if (dispInfo >= 0)
                     {
-                        var normIndex = 1 + normIndices[firstNorm + i];
-                        var vertIndex = 1 + firstVert + i;
-                        var uvIndex   = 1 + firstUV + i;
+                        int dispSize = (int)Math.Sqrt(numEdges);
+                        Debug.Assert(dispSize * dispSize == numEdges);
 
-                        objWriter.Append($" {vertIndex}/{uvIndex}/{normIndex}");
+                        for (int y = 0; y < dispSize - 1; y++)
+                        {
+                            for (int x = 0; x < dispSize - 1; x++)
+                            {
+                                int aa = firstVert + (y * dispSize) + x + 1;
+                                int ab = aa + 1;
+
+                                int bb = ab + dispSize;
+                                int ba = bb - 1;
+
+                                string quad = $"  f"
+                                    + $" {aa}/{aa}/{aa}"
+                                    + $" {ab}/{ab}/{ab}"
+                                    + $" {bb}/{bb}/{bb}"
+                                    + $" {ba}/{ba}/{ba}";
+
+                                objWriter.AppendLine(quad);
+                            }
+                        }
                     }
+                    else
+                    {
+                        objWriter.Append("  f");
 
+                        for (int i = 0; i < numEdges; i++)
+                        {
+                            var normIndex = 1 + firstNorm + i;
+                            var vertIndex = 1 + firstVert + i;
+                            var uvIndex   = 1 + firstUV + i;
+
+                            objWriter.Append($" {vertIndex}/{uvIndex}/{normIndex}");
+                        }
+                    }
+                    
                     objWriter.AppendLine();
                 }
             }
