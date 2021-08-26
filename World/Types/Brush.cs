@@ -42,7 +42,7 @@ namespace Source2Roblox.World.Types
         Hitbox       = 0x40000000
     }
 
-    public struct Brush
+    public class Brush
     {
         public readonly BrushFlags Contents;
         public readonly int FirstSide;
@@ -56,7 +56,7 @@ namespace Source2Roblox.World.Types
         }
     }
 
-    public struct BrushSide
+    public class BrushSide
     {
         public readonly ushort PlaneNum;
         public readonly short TexInfo;

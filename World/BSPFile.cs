@@ -23,6 +23,12 @@ namespace Source2Roblox.World
         public readonly List<Face> Faces = new List<Face>();
         public readonly List<ushort> Edges = new List<ushort>();
 
+        public readonly List<Node> Nodes = new List<Node>();
+        public readonly List<Leaf> Leaves = new List<Leaf>();
+
+        public readonly List<ushort> LeafFaces = new List<ushort>();
+        public readonly List<ushort> LeafBrushes = new List<ushort>();
+
         public readonly List<Plane> Planes = new List<Plane>();
         public readonly List<Brush> Brushes = new List<Brush>();
 
@@ -125,6 +131,11 @@ namespace Source2Roblox.World
                             reader.ReadToEnd(TexData);
                             break;
                         }
+                        case LumpType.Nodes:
+                        {
+                            reader.ReadToEnd(Nodes);
+                            break;
+                        }
                         case LumpType.Vertices:
                         {
                             reader.ReadToEnd(Vertices, reader.ReadVector3);
@@ -138,6 +149,11 @@ namespace Source2Roblox.World
                         case LumpType.Faces:
                         {
                             reader.ReadToEnd(Faces);
+                            break;
+                        }
+                        case LumpType.Leaves:
+                        {
+                            reader.ReadToEnd(Leaves, () => new Leaf(reader, this));
                             break;
                         }
                         case LumpType.Edges:
@@ -155,9 +171,24 @@ namespace Source2Roblox.World
                             reader.ReadToEnd(BrushModels);
                             break;
                         }
+                        case LumpType.LeafFaces:
+                        {
+                            reader.ReadToEnd(LeafFaces, reader.ReadUInt16);
+                            break;
+                        }
+                        case LumpType.LeafBrushes:
+                        {
+                            reader.ReadToEnd(LeafBrushes, reader.ReadUInt16);
+                            break;
+                        }
                         case LumpType.Brushes:
                         {
                             reader.ReadToEnd(Brushes);
+                            break;
+                        }
+                        case LumpType.BrushSides:
+                        {
+                            reader.ReadToEnd(BrushSides);
                             break;
                         }
                         case LumpType.Displacements:

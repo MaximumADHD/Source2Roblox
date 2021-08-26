@@ -3,7 +3,7 @@ using System.Drawing;
 
 namespace Source2Roblox.Textures
 {
-    public class Color565
+    public struct Color565
     {
         public readonly ushort Value;
 

@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Text;
 
 using RobloxFiles.DataTypes;
 using Microsoft.Win32;
-using System.Diagnostics;
-using System.Reflection;
 
 public static class Extensions
 {
@@ -85,6 +86,15 @@ public static class Extensions
         return new Vector2(x, y);
     }
 
+    public static Vector3int16 ReadVector3int16(this BinaryReader reader)
+    {
+        short x = reader.ReadInt16(),
+              y = reader.ReadInt16(),
+              z = reader.ReadInt16();
+
+        return new Vector3int16(x, y, z);
+    }
+
     public static string ReadString(this BinaryReader reader, int? length, Encoding encoding = null)
     {
         var stream = reader.BaseStream;
@@ -123,6 +133,16 @@ public static class Extensions
     {
         var result = key.GetValue(name, "");
         return result.ToString();
+    }
+
+    public static Color Lerp(this Color c0, Color c1, float t)
+    {
+        int a = c0.A + (int)((c1.A - c0.A) * t),
+            r = c0.R + (int)((c1.R - c0.R) * t),
+            g = c0.G + (int)((c1.G - c0.G) * t),
+            b = c0.B + (int)((c1.B - c0.B) * t);
+        
+        return Color.FromArgb(a, r, g, b);
     }
 }
 

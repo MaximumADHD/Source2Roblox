@@ -7,7 +7,7 @@
         TexData,
         Vertices,
         Visibility,
-        TreeNodes,
+        Nodes,
         TexInfo,
         Faces,
         Lighting,

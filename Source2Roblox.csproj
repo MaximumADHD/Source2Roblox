@@ -75,8 +75,11 @@
     </Compile>
     <Compile Include="Util\ValveMaterial.cs" />
     <Compile Include="World\BSPFile.cs" />
+    <Compile Include="Util\ColorRGBExp32.cs" />
     <Compile Include="World\Lump.cs" />
     <Compile Include="World\Types\Event.cs" />
+    <Compile Include="World\Types\Leaf.cs" />
+    <Compile Include="World\Types\Node.cs" />
     <Compile Include="World\Types\Textures.cs" />
     <Compile Include="Util\LZMA.cs" />
     <Compile Include="World\Types\Brush.cs" />

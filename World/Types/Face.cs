@@ -30,7 +30,16 @@ namespace Source2Roblox.World.Types
         public int FirstUV;
         public int FirstVert;
         public int FirstNorm;
+
         public string Material;
+        public int BrushIndex;
+        public int LeafIndex;
+
+        public bool Skip;
+        public Leaf Leaf;
+
+        public int EntityId = -1;
+        public Vector3 Center = new Vector3();
 
         public override string ToString()
         {

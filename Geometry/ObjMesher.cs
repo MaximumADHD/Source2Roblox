@@ -175,13 +175,15 @@ namespace Source2Roblox.Geometry
             int numNorms = 0;
 
             var materialSets = new Dictionary<string, ValveMaterial>();
-            var facesByMaterial = new Dictionary<string, List<Face>>();
-
             var vertOffsets = new Dictionary<int, Vector3>();
+
             var brushModels = bsp.BrushModels;
+            var leafFaces = bsp.LeafFaces;
+            var leaves = bsp.Leaves;
 
             foreach (var entity in bsp.Entities)
             {
+                string className = entity.ClassName;
                 string modelId = entity.Get<string>("model");
 
                 if (modelId == null)
@@ -195,6 +197,11 @@ namespace Source2Roblox.Geometry
 
                 if (modelIndex < 0 || modelIndex >= brushModels.Count)
                     continue;
+
+                bool shouldSkip = false;
+
+                if (className.StartsWith("trigger"))
+                    shouldSkip = true;
 
                 var model = bsp.BrushModels[modelIndex];
                 var origin = entity.Get<Vector3>("origin");
@@ -211,6 +218,12 @@ namespace Source2Roblox.Geometry
                     int faceId = faceIndex + i;
                     var face = bsp.Faces[faceId];
 
+                    if (shouldSkip)
+                    {
+                        face.Skip = true;
+                        continue;
+                    }
+
                     var firstEdge = face.FirstEdge;
                     var numEdges = face.NumEdges;
 
@@ -219,11 +232,30 @@ namespace Source2Roblox.Geometry
                         var vertId = (int)vertIndices[firstEdge + j];
                         vertOffsets[vertId] = offset;
                     }
+
+                    face.EntityId = modelIndex;
                 }
 
                 model.Origin = origin;
                 model.BoundsMin += offset;
                 model.BoundsMax += offset;
+            }
+
+            var marked = new HashSet<int>();
+
+            for (int i = 0; i < leaves.Count; i++)
+            {
+                var leaf = leaves[i];
+                var firstFace = leaf.FirstLeafFace;
+
+                for (int j = 0; j < leaf.NumLeafFaces; j++)
+                {
+                    var index = leafFaces[firstFace + j];
+                    var face = bsp.Faces[index];
+
+                    face.LeafIndex = i;
+                    marked.Add(index);
+                }
             }
 
             foreach (var face in bsp.Faces)
@@ -261,13 +293,14 @@ namespace Source2Roblox.Geometry
                 var size = texData.Size;
                 
                 var material = face.Material;
+                var center = new Vector3();
                 var flags = texInfo.Flags;
 
                 if ((flags & IGNORE) != TextureFlags.None)
+                {
+                    face.Skip = true;
                     continue;
-
-                if (material.ToLowerInvariant() == "tools/toolstrigger")
-                    continue;
+                }
 
                 if (material.StartsWith($"maps/{mapName}"))
                 {
@@ -289,6 +322,8 @@ namespace Source2Roblox.Geometry
                         material = material.Replace($"maps/{mapName}/", "");
                         break;
                     }
+
+                    face.Material = material;
                 }
 
                 if (!materialSets.ContainsKey(material))
@@ -319,8 +354,6 @@ namespace Source2Roblox.Geometry
                         mtlWriter.AppendLine($"\tbump {png}");
                         vmt.SaveVTF(bump, exportDir);
                     }
-
-                    facesByMaterial[material] = new List<Face>();
                 }
 
                 if (face.DispInfo >= 0)
@@ -363,11 +396,7 @@ namespace Source2Roblox.Geometry
 
                     var dispSize = (1 << disp.Power) + 1;
                     numEdges = (dispSize * dispSize);
-
-                    var dispVerts = new List<Vector3>();
-                    var dispNorms = new List<Vector3>();
-                    var dispUVs = new List<Vector2>();
-
+                    
                     for (int y = 0; y < dispSize; y++)
                     {
                         var rowSample = (float)y / (dispSize - 1);
@@ -384,6 +413,7 @@ namespace Source2Roblox.Geometry
 
                             var dispVert = bsp.DispVerts[i];
                             pos += dispVert.Vector * dispVert.Dist;
+                            center += (pos / numEdges);
 
                             norms.Add(pos.Unit); // TODO
                             verts.Add(pos);
@@ -407,12 +437,14 @@ namespace Source2Roblox.Geometry
                         if (vertOffsets.ContainsKey(vertIndex))
                             vert += vertOffsets[vertIndex];
 
+                        center += (vert / numEdges);
                         verts.Add(vert);
                         norms.Add(norm);
                         uvs.Add(uv);
                     }
                 }
 
+                face.Center = center;
                 face.FirstUV = numUVs;
                 face.FirstNorm = numNorms;
                 face.FirstVert = numVerts;
@@ -420,8 +452,6 @@ namespace Source2Roblox.Geometry
                 numUVs += numEdges;
                 numNorms += numEdges;
                 numVerts += numEdges;
-
-                facesByMaterial[material].Add(face);
             }
 
             string objPath = Path.Combine(exportDir, $"{mapName}.obj");
@@ -430,32 +460,101 @@ namespace Source2Roblox.Geometry
             foreach (var vertex in verts)
             {
                 var v = vertex / 10f;
-                objWriter.AppendLine($"v {v.X} {-v.Z} {v.Y}");
+                objWriter.AppendLine($"v {v.X} {v.Z} {-v.Y}");
             }
 
             foreach (var norm in norms)
-                objWriter.AppendLine($"vn {norm.X} {-norm.Z} {norm.Y}");
+                objWriter.AppendLine($"vn {norm.X} {norm.Z} {-norm.Y}");
 
             foreach (var uv in uvs)
                 objWriter.AppendLine($"vt {uv.X} {1f - uv.Y}");
 
-            foreach (string material in facesByMaterial.Keys)
+            var flatten = new Vector3(1, 1, 0);
+
+            var faceQueue = faces.Where(face => !face.Skip);
+            var faceGroups = new List<List<Face>>();
+            
+            // This is very inefficient but it'll do for now.
+            // I want to get a nicer grouping algorithm ASAP.
+
+            while (faceQueue.Any())
             {
-                var faceSet = facesByMaterial[material];
-                objWriter.AppendLine($"\nusemtl {material}");
-                
-                foreach (var face in faceSet)
+                var face = faceQueue.First();
+
+                var group = new List<Face>();
+                group.Add(face);
+
+                if (face.DispInfo >= 0)
                 {
-                    int dispInfo  = face.DispInfo,
-                        numEdges  = face.NumEdges,
+                    faceQueue = faceQueue
+                        .Except(group)
+                        .ToList();
+
+                    faceGroups.Add(group);
+
+                    continue;
+                }
+
+                Console.WriteLine($"Grouping faces... ({faceQueue.Count()}/{faces.Count()} remaining)");
+
+                foreach (var otherFace in faceQueue)
+                {
+                    if (face.EntityId >= 0)
+                    {
+                        if (otherFace.EntityId != face.EntityId)
+                            continue;
+
+                        group.Add(otherFace);
+                    }
+                    else
+                    {
+                        if (otherFace.DispInfo >= 0)
+                            continue;
+
+                        if (otherFace.EntityId >= 0)
+                            continue;
+
+                        var dist = ((otherFace.Center - face.Center) * flatten).Magnitude;
+
+                        if (dist > 400)
+                            continue;
+
+                        group.Add(otherFace);
+                    }
+                }
+
+                faceQueue = faceQueue
+                    .Except(group)
+                    .ToList();
+
+                faceGroups.Add(group);
+            }
+
+            int groupId = 0;
+
+            foreach (var group in faceGroups)
+            {
+                string lastMaterial = "";
+                objWriter.AppendLine($"o group_{groupId++}");
+
+                foreach (var face in group)
+                {
+                    int dispInfo = face.DispInfo,
+                        entityId = face.EntityId,
+                        numEdges = face.NumEdges,
                         firstVert = face.FirstVert,
                         firstNorm = face.FirstNorm,
-                        firstUV   = face.FirstUV;
+                        firstUV = face.FirstUV;
 
                     if (dispInfo >= 0)
                     {
                         int dispSize = (int)Math.Sqrt(numEdges);
                         Debug.Assert(dispSize * dispSize == numEdges);
+
+                        objWriter.AppendLine($"o disp_{dispInfo}");
+                        objWriter.AppendLine($" usemtl {face.Material}");
+
+                        lastMaterial = "";
 
                         for (int y = 0; y < dispSize - 1; y++)
                         {
@@ -479,18 +578,33 @@ namespace Source2Roblox.Geometry
                     }
                     else
                     {
+                        var material = face.Material;
+                        var center = face.Center;
+
+                        if (material.ToLowerInvariant() == "tools/toolstrigger")
+                            continue;
+
+                        if (face.Skip)
+                            continue;
+
+                        if (material != lastMaterial)
+                        {
+                            objWriter.AppendLine($" usemtl {material}");
+                            lastMaterial = material;
+                        }
+
                         objWriter.Append("  f");
 
                         for (int i = 0; i < numEdges; i++)
                         {
                             var normIndex = 1 + firstNorm + i;
                             var vertIndex = 1 + firstVert + i;
-                            var uvIndex   = 1 + firstUV + i;
+                            var uvIndex = 1 + firstUV + i;
 
                             objWriter.Append($" {vertIndex}/{uvIndex}/{normIndex}");
                         }
                     }
-                    
+
                     objWriter.AppendLine();
                 }
             }
