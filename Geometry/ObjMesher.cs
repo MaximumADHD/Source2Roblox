@@ -326,6 +326,12 @@ namespace Source2Roblox.Geometry
                     face.Material = material;
                 }
 
+                if (material.ToLowerInvariant() == "tools/toolstrigger")
+                {
+                    face.Skip = true;
+                    continue;
+                }
+
                 if (!materialSets.ContainsKey(material))
                 {
                     var saveInfo = new FileInfo(material);
@@ -469,92 +475,30 @@ namespace Source2Roblox.Geometry
             foreach (var uv in uvs)
                 objWriter.AppendLine($"vt {uv.X} {1f - uv.Y}");
 
-            var flatten = new Vector3(1, 1, 0);
+            var facesByMaterial = faces
+                .GroupBy(face => face.Material)
+                .OrderBy(group => group.Key);
 
-            var faceQueue = faces.Where(face => !face.Skip);
-            var faceGroups = new List<List<Face>>();
-            
-            // This is very inefficient but it'll do for now.
-            // I want to get a nicer grouping algorithm ASAP.
+            int faceCount = 0;
 
-            while (faceQueue.Any())
+            foreach (var group in facesByMaterial)
             {
-                var face = faceQueue.First();
-
-                var group = new List<Face>();
-                group.Add(face);
-
-                if (face.DispInfo >= 0)
-                {
-                    faceQueue = faceQueue
-                        .Except(group)
-                        .ToList();
-
-                    faceGroups.Add(group);
-
-                    continue;
-                }
-
-                Console.WriteLine($"Grouping faces... ({faceQueue.Count()}/{faces.Count()} remaining)");
-
-                foreach (var otherFace in faceQueue)
-                {
-                    if (face.EntityId >= 0)
-                    {
-                        if (otherFace.EntityId != face.EntityId)
-                            continue;
-
-                        group.Add(otherFace);
-                    }
-                    else
-                    {
-                        if (otherFace.DispInfo >= 0)
-                            continue;
-
-                        if (otherFace.EntityId >= 0)
-                            continue;
-
-                        var dist = ((otherFace.Center - face.Center) * flatten).Magnitude;
-
-                        if (dist > 400)
-                            continue;
-
-                        group.Add(otherFace);
-                    }
-                }
-
-                faceQueue = faceQueue
-                    .Except(group)
-                    .ToList();
-
-                faceGroups.Add(group);
-            }
-
-            int groupId = 0;
-
-            foreach (var group in faceGroups)
-            {
-                string lastMaterial = "";
-                objWriter.AppendLine($"o group_{groupId++}");
+                objWriter.AppendLine($"usemtl {group.Key}");
 
                 foreach (var face in group)
                 {
                     int dispInfo = face.DispInfo,
-                        entityId = face.EntityId,
                         numEdges = face.NumEdges,
                         firstVert = face.FirstVert,
                         firstNorm = face.FirstNorm,
                         firstUV = face.FirstUV;
 
+                    objWriter.AppendLine($" o face_{faceCount++}");
+
                     if (dispInfo >= 0)
                     {
                         int dispSize = (int)Math.Sqrt(numEdges);
                         Debug.Assert(dispSize * dispSize == numEdges);
-
-                        objWriter.AppendLine($"o disp_{dispInfo}");
-                        objWriter.AppendLine($" usemtl {face.Material}");
-
-                        lastMaterial = "";
 
                         for (int y = 0; y < dispSize - 1; y++)
                         {
@@ -581,17 +525,8 @@ namespace Source2Roblox.Geometry
                         var material = face.Material;
                         var center = face.Center;
 
-                        if (material.ToLowerInvariant() == "tools/toolstrigger")
-                            continue;
-
                         if (face.Skip)
                             continue;
-
-                        if (material != lastMaterial)
-                        {
-                            objWriter.AppendLine($" usemtl {material}");
-                            lastMaterial = material;
-                        }
 
                         objWriter.Append("  f");
 
