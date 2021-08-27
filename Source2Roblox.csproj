@@ -65,15 +65,20 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Geometry\MeshBuffer.cs" />
     <Compile Include="Geometry\RobloxMesh.cs" />
     <Compile Include="Models\Constants.cs" />
-    <Compile Include="Models\TriangleData.cs" />
-    <Compile Include="Models\VertexData.cs" />
+    <Compile Include="Geometry\TriangleData.cs" />
+    <Compile Include="Geometry\VertexData.cs" />
+    <Compile Include="Octree\OctreeNode.cs" />
+    <Compile Include="Octree\OctreeRegion.cs" />
     <Compile Include="Util\Formatting.cs" />
+    <Compile Include="Octree\Octree.cs" />
     <Compile Include="Util\RobloxWebClient.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="Util\ValveMaterial.cs" />
+    <Compile Include="Textures\ValveMaterial.cs" />
+    <Compile Include="World\Winding.cs" />
     <Compile Include="World\BSPFile.cs" />
     <Compile Include="Util\ColorRGBExp32.cs" />
     <Compile Include="World\Lump.cs" />
@@ -89,7 +94,7 @@
     <Compile Include="World\Types\Plane.cs" />
     <Compile Include="Models\ModelFile.cs" />
     <Compile Include="Models\ModelHeader.cs" />
-    <Compile Include="Geometry\ObjMesher.cs" />
+    <Compile Include="Geometry\MeshBuilder.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Util\Extensions.cs" />
@@ -127,5 +132,6 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

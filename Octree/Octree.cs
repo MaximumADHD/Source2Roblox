@@ -34,10 +34,7 @@ namespace Source2Roblox.Octree
 
         public OctreeNode<T> CreateNode(Vector3 focus, T value)
         {
-            var node = new OctreeNode<T>(this, value);
-            node.Position = focus;
-
-            return node;
+            return new OctreeNode<T>(this, value) { Position = focus };
         }
 
         public List<T> RadiusSearch(Vector3 pos, float radius)

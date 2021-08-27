@@ -52,6 +52,9 @@ namespace Source2Roblox.World
         public readonly List<int> TexDataStringTable = new List<int>();
         public readonly Dictionary<int, string> TexDataStringData = new Dictionary<int, string>();
 
+        private const float ROUND_VERTEX_EPSILON = 0.01f;
+        private const float MIN_EDGE_LENGTH_EPSILON = 0.1f;
+
         private void ReadLump(BinaryReader bspReader, LumpType type)
         {
             var stream = bspReader.BaseStream;
@@ -234,7 +237,7 @@ namespace Source2Roblox.World
                         {
                             reader.ReadToEnd(DispTris, () =>
                             {
-                                ushort tags = reader.ReadUInt16();
+                                var tags = reader.ReadUInt16();
                                 return (DispTriTags)tags;
                             });
 
@@ -264,6 +267,125 @@ namespace Source2Roblox.World
 
                 MapRevision = reader.ReadInt32();
             }
+        }
+
+        private static float RoundCoord(float value)
+        {
+            float round = (float)Math.Round(value);
+
+            if (value != round && Math.Abs(value - round) < ROUND_VERTEX_EPSILON)
+                return round;
+
+            return value;
+        }
+
+        public List<Winding> SolveFaces(Brush brush)
+        {
+            int numSides = brush.NumSides,
+                firstSide = brush.FirstSide;
+
+            var usePlane = new bool[numSides];
+
+            // For every face that is not set to be ignored, check the plane and make sure
+            // it is unique.We mark each plane that we intend to keep with `true` in the
+            // 'usePlane' array.
+
+            for (int i = 0; i < brush.NumSides; i++)
+            {
+                var side = BrushSides[firstSide + i];
+                var plane = Planes[side.PlaneNum];
+
+                // Don't use this plane if it has a zero-length normal.
+                if (plane.Normal.Magnitude == 0f)
+                {
+                    usePlane[i] = false;
+                    continue;
+                }
+
+                // If the plane duplicates another plane, don't use it
+                usePlane[i] = true;
+
+                for (int j = 0; j < i; j++)
+                {
+                    var sideCheck = BrushSides[firstSide + j];
+                    var planeCheck = Planes[sideCheck.PlaneNum];
+
+                    var f1 = plane.Normal;
+                    var f2 = planeCheck.Normal;
+
+                    // Check for duplicate plane within some tolerance.
+                    if (f1.Dot(f2) > 0.99)
+                    {
+                        var d1 = plane.Dist;
+                        var d2 = planeCheck.Dist;
+
+                        if (Math.Abs(d1 - d2) < 0.01f)
+                        {
+                            usePlane[j] = false;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Now we have a set of planes, indicated by `true` values in the 'usePlanes' array,
+            // from which we will build a solid.
+
+            var faces = new List<Winding>();
+
+            for (int i = 0; i < numSides; i++)
+            {
+                var side = BrushSides[firstSide + i];
+                var plane = Planes[side.PlaneNum];
+
+                if (!usePlane[i])
+                    continue;
+
+                // Create a huge winding from this plane,
+                // then clip it by all other planes.
+
+                var clipId = 0;
+                var winding = new Winding(plane);
+
+                while (winding != null && clipId < numSides)
+                {
+                    if (i != clipId)
+                    {
+                        var clipSide = BrushSides[firstSide + clipId];
+                        var clip = Planes[clipSide.PlaneNum];
+
+                        // Flip the plane, because we want to keep the back side.
+                        winding = winding.Clip(-clip.Normal, -clip.Dist);
+                    }
+
+                    clipId++;
+                }
+
+                // If we still have a winding after all that clipping,
+                // build a face from the winding.
+
+                if (winding != null)
+                {
+                    // Round all points in the winding that are within
+                    // ROUND_VERTEX_EPSILON OF integer values.
+
+                    for (int j = 0; j < winding.Count; j++)
+                    {
+                        var point = winding[j];
+
+                        float x = RoundCoord(point.X),
+                              y = RoundCoord(point.Y),
+                              z = RoundCoord(point.Z);
+
+                        winding[j] = new Vector3(x, y, z);
+                    }
+
+                    winding.RemoveDuplicates(MIN_EDGE_LENGTH_EPSILON);
+                    faces.Add(winding);
+                }
+            }
+
+            return faces;
         }
     }
 }

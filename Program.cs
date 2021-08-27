@@ -379,7 +379,7 @@ namespace Source2Roblox
                         var mdl = new ModelFile(path);
                         BakeRbxm(mdl);
 
-                        ObjMesher.BakeMDL(mdl, exportDir);
+                        MeshBuilder.BakeMDL(mdl, exportDir);
                     }
                     catch (Exception e)
                     {
@@ -396,7 +396,7 @@ namespace Source2Roblox
                 Directory.CreateDirectory(exportDir);
 
                 var bsp = new BSPFile($"maps/{mapName}.bsp");
-                ObjMesher.BakeBSP(bsp, exportDir);
+                MeshBuilder.BakeBSP(bsp, exportDir);
             }
 
             Console.WriteLine("Press any key to continue...");

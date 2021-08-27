@@ -1,21 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 
 using Source2Roblox.FileSystem;
 using Source2Roblox.Models;
+using Source2Roblox.Octree;
 using Source2Roblox.World;
 using Source2Roblox.World.Types;
+using Source2Roblox.Textures;
 
 using RobloxFiles.DataTypes;
-using Source2Roblox.Util;
-using System.Diagnostics;
 
 namespace Source2Roblox.Geometry
 {
-    public static class ObjMesher
+    public static class MeshBuilder
     {
         private const TextureFlags IGNORE = TextureFlags.Hint | TextureFlags.Skip | TextureFlags.Sky | TextureFlags.Trigger;
         
@@ -166,6 +167,43 @@ namespace Source2Roblox.Geometry
                 vertIndices.Add(edge);
             }
 
+            var windingToBrushSide = new Dictionary<Winding, BrushSide>();
+            var brushSideToBrush = new Dictionary<BrushSide, Brush>();
+            var windingOctree = new Octree<Winding>();
+
+            var brushSides = bsp.BrushSides;
+            var brushes = bsp.Brushes;
+            int solved = 0;
+
+            foreach (var brush in brushes)
+            {
+                var sides = new List<BrushSide>();
+                var firstSide = brush.FirstSide;
+                var numSides = brush.NumSides;
+
+                for (int i = 0; i < numSides; i++)
+                {
+                    var side = brushSides[firstSide + i];
+                    brushSideToBrush[side] = brush;
+                    sides.Add(side);
+                }
+
+                Console.WriteLine($"Solving Brush {solved++}/{brushes.Count}");
+                var windings = bsp.SolveFaces(brush);
+
+                for (int i = 0; i < windings.Count; i++)
+                {
+                    var winding = windings[i];
+                    var side = sides[i];
+
+                    Debugger.Break();
+                }
+            }
+
+
+            var materialSets = new Dictionary<string, ValveMaterial>();
+            var vertOffsets = new Dictionary<int, Vector3>();
+
             var uvs = new List<Vector2>();
             var verts = new List<Vector3>();
             var norms = new List<Vector3>();
@@ -173,9 +211,6 @@ namespace Source2Roblox.Geometry
             int numUVs = 0;
             int numVerts = 0;
             int numNorms = 0;
-
-            var materialSets = new Dictionary<string, ValveMaterial>();
-            var vertOffsets = new Dictionary<int, Vector3>();
 
             var brushModels = bsp.BrushModels;
             var leafFaces = bsp.LeafFaces;
@@ -274,7 +309,6 @@ namespace Source2Roblox.Geometry
             }
 
             var faces = bsp.Faces.OrderBy(face => face.Material);
-            objWriter.AppendLine();
             numNorms = 0;
 
             foreach (Face face in faces)

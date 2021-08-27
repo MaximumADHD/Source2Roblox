@@ -5,10 +5,9 @@ using System.IO;
 
 using ValveKeyValue;
 using Source2Roblox.FileSystem;
-using Source2Roblox.Textures;
 using System.Linq;
 
-namespace Source2Roblox.Util
+namespace Source2Roblox.Textures
 {
 
     public class ValveMaterial
