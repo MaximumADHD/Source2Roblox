@@ -279,7 +279,7 @@ namespace Source2Roblox.World
             return value;
         }
 
-        public List<Winding> SolveFaces(Brush brush)
+        public Dictionary<int, Winding> SolveFaces(Brush brush)
         {
             int numSides = brush.NumSides,
                 firstSide = brush.FirstSide;
@@ -314,7 +314,7 @@ namespace Source2Roblox.World
                     var f2 = planeCheck.Normal;
 
                     // Check for duplicate plane within some tolerance.
-                    if (f1.Dot(f2) > 0.99)
+                    if (f1.Dot(f2) > 0.999f)
                     {
                         var d1 = plane.Dist;
                         var d2 = planeCheck.Dist;
@@ -331,7 +331,7 @@ namespace Source2Roblox.World
             // Now we have a set of planes, indicated by `true` values in the 'usePlanes' array,
             // from which we will build a solid.
 
-            var faces = new List<Winding>();
+            var faces = new Dictionary<int, Winding>();
 
             for (int i = 0; i < numSides; i++)
             {
@@ -381,7 +381,7 @@ namespace Source2Roblox.World
                     }
 
                     winding.RemoveDuplicates(MIN_EDGE_LENGTH_EPSILON);
-                    faces.Add(winding);
+                    faces[i] = winding;
                 }
             }
 

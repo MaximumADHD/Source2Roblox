@@ -64,7 +64,10 @@ namespace Source2Roblox.World
                 up = new Vector3(1, 0, 0);
 
             var scale = -up.Dot(normal);
-            up = (up + normal * scale).Unit;
+            up += scale * normal;
+
+            var length = up.Magnitude;
+            up /= length + 1e-10f;
 
             var origin = normal * plane.Dist;
             var right = up.Cross(normal);

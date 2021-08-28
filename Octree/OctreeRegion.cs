@@ -52,7 +52,7 @@ namespace Source2Roblox.Octree
 
         public OctreeRegion(Vector3 pos, Vector3 size, OctreeRegion<T> parent, int parentIndex) : this(pos, size)
         {
-            Debug.Assert(parentIndex < 0 && parentIndex > 7);
+            Debug.Assert(parentIndex > -1 && parentIndex < 8);
             Debug.Assert(parent != null);
 
             ParentIndex = parentIndex;
@@ -155,9 +155,8 @@ namespace Source2Roblox.Octree
             for (int i = Depth; i < maxDepth; i++)
             {
                 int index = current.GetSubRegionIndex(pos);
-                var next = current.SubRegions[index];
-
-                if (next == null)
+                
+                if (!current.SubRegions.TryGetValue(index, out var next))
                 {
                     next = current.CreateSubRegion(index);
                     current.SubRegions[index] = next;

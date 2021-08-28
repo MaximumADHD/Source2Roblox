@@ -13,6 +13,10 @@ using Source2Roblox.World.Types;
 using Source2Roblox.Textures;
 
 using RobloxFiles.DataTypes;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using System.Threading;
+using RobloxFiles;
 
 namespace Source2Roblox.Geometry
 {
@@ -167,40 +171,6 @@ namespace Source2Roblox.Geometry
                 vertIndices.Add(edge);
             }
 
-            var windingToBrushSide = new Dictionary<Winding, BrushSide>();
-            var brushSideToBrush = new Dictionary<BrushSide, Brush>();
-            var windingOctree = new Octree<Winding>();
-
-            var brushSides = bsp.BrushSides;
-            var brushes = bsp.Brushes;
-            int solved = 0;
-
-            foreach (var brush in brushes)
-            {
-                var sides = new List<BrushSide>();
-                var firstSide = brush.FirstSide;
-                var numSides = brush.NumSides;
-
-                for (int i = 0; i < numSides; i++)
-                {
-                    var side = brushSides[firstSide + i];
-                    brushSideToBrush[side] = brush;
-                    sides.Add(side);
-                }
-
-                Console.WriteLine($"Solving Brush {solved++}/{brushes.Count}");
-                var windings = bsp.SolveFaces(brush);
-
-                for (int i = 0; i < windings.Count; i++)
-                {
-                    var winding = windings[i];
-                    var side = sides[i];
-
-                    Debugger.Break();
-                }
-            }
-
-
             var materialSets = new Dictionary<string, ValveMaterial>();
             var vertOffsets = new Dictionary<int, Vector3>();
 
@@ -309,6 +279,7 @@ namespace Source2Roblox.Geometry
             }
 
             var faces = bsp.Faces.OrderBy(face => face.Material);
+            var faceOctree = new Octree<Face>();
             numNorms = 0;
 
             foreach (Face face in faces)
@@ -492,7 +463,44 @@ namespace Source2Roblox.Geometry
                 numUVs += numEdges;
                 numNorms += numEdges;
                 numVerts += numEdges;
+
+                faceOctree.CreateNode(center, face);
             }
+
+            // Cluster nearby faces by material.
+            var facesLeft = faces
+                .Where(face => !face.Skip)
+                .ToHashSet();
+
+            var clusters = new List<HashSet<Face>>();
+
+            while (facesLeft.Any())
+            {
+                var face = facesLeft.First();
+                facesLeft.Remove(face);
+
+                var cluster = new HashSet<Face>();
+                cluster.Add(face);
+
+                var area = face.Area;
+                var sqrtArea = (float)Math.Sqrt(area);
+
+                var nearby = faceOctree
+                    .RadiusSearch(face.Center, sqrtArea * 5)
+                    .Where(other => other.Material == face.Material)
+                    .Where(facesLeft.Contains);
+
+                foreach (var other in nearby)
+                {
+                    facesLeft.Remove(other);
+                    cluster.Add(other);
+                }
+
+                clusters.Add(cluster);
+            }
+
+            // Write OBJ files.
+            Console.WriteLine("Writing OBJ files...");
 
             string objPath = Path.Combine(exportDir, $"{mapName}.obj");
             string mtlPath = Path.Combine(exportDir, $"{mapName}.mtl");
@@ -509,17 +517,13 @@ namespace Source2Roblox.Geometry
             foreach (var uv in uvs)
                 objWriter.AppendLine($"vt {uv.X} {1f - uv.Y}");
 
-            var facesByMaterial = faces
-                .GroupBy(face => face.Material)
-                .OrderBy(group => group.Key);
-
-            int faceCount = 0;
-
-            foreach (var group in facesByMaterial)
+            for (int i = 0; i < clusters.Count; i++)
             {
-                objWriter.AppendLine($"usemtl {group.Key}");
-
-                foreach (var face in group)
+                bool first = true;
+                var cluster = clusters[i];
+                objWriter.AppendLine($"o cluster_{i}");
+                
+                foreach (var face in cluster)
                 {
                     int dispInfo = face.DispInfo,
                         numEdges = face.NumEdges,
@@ -527,7 +531,12 @@ namespace Source2Roblox.Geometry
                         firstNorm = face.FirstNorm,
                         firstUV = face.FirstUV;
 
-                    objWriter.AppendLine($" o face_{faceCount++}");
+                    if (first)
+                    {
+                        string material = face.Material;
+                        objWriter.AppendLine($" usemtl {material}");
+                        first = false;
+                    }
 
                     if (dispInfo >= 0)
                     {
@@ -556,7 +565,6 @@ namespace Source2Roblox.Geometry
                     }
                     else
                     {
-                        var material = face.Material;
                         var center = face.Center;
 
                         if (face.Skip)
@@ -564,11 +572,11 @@ namespace Source2Roblox.Geometry
 
                         objWriter.Append("  f");
 
-                        for (int i = 0; i < numEdges; i++)
+                        for (int j = 0; j < numEdges; j++)
                         {
-                            var normIndex = 1 + firstNorm + i;
-                            var vertIndex = 1 + firstVert + i;
-                            var uvIndex = 1 + firstUV + i;
+                            var normIndex = 1 + firstNorm + j;
+                            var vertIndex = 1 + firstVert + j;
+                            var uvIndex   = 1 + firstUV   + j;
 
                             objWriter.Append($" {vertIndex}/{uvIndex}/{normIndex}");
                         }
@@ -583,6 +591,53 @@ namespace Source2Roblox.Geometry
 
             string mtl = mtlWriter.ToString();
             File.WriteAllText(mtlPath, mtl);
+
+            // Write Roblox Files...
+            Console.WriteLine("Writing Roblox files...");
+
+            string gameName = GameMount.GetGameName(game);
+            string localAppData = Environment.GetEnvironmentVariable("localappdata");
+
+            string sourceDir = Path.Combine(localAppData, "Roblox Studio", "content", "source", gameName);
+            string mapsDir = Path.Combine(sourceDir, "maps");
+            string mapDir = Path.Combine(mapsDir, bsp.Name);
+
+            Directory.CreateDirectory(sourceDir);
+            Directory.CreateDirectory(mapsDir);
+            Directory.CreateDirectory(mapDir);
+
+            string savePath = Path.Combine(mapsDir, bsp.Name + ".rbxm");
+            var map = new BinaryRobloxFile();
+
+            var level = new Model() 
+            { 
+                Name = bsp.Name,
+                Parent = map
+            };
+            
+            foreach (var cluster in clusters)
+            {
+                var mesh = new RobloxMesh();
+
+                foreach (var face in cluster)
+                {
+                    var numEdges = face.NumEdges;
+
+                    int firstNorm = face.FirstNorm,
+                        firstVert = face.FirstVert,
+                        firstUV   = face.FirstUV;
+
+                    for (int i = 0; i < numEdges; i++)
+                    {
+                        var normIndex = 1 + firstNorm + i;
+                        var vertIndex = 1 + firstVert + i;
+                        var uvIndex   = 1 + firstUV   + i;
+
+                    }
+                }
+            }
+
+            map.Save(savePath);
         }
     }
 }
