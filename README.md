@@ -18,10 +18,10 @@ But if you're feeling brave enough, you can set it up with the following steps:
 4. Right click on the `Source2Roblox` project and click Properties
 5. Navigate to the `Debug` tab, and use some of the following command line arguments to get things up and running:
 
-- `-game "PATH/TO/GAME/FOLDER"` (**REQUIRED**, Example: `-game "C:\Program Files (x86)\Steam\steamapps\common\Half-Life 2\hl2"`)
-- `-model "path/to/local/model.mdl"` (Optional, Example: `-model` for real-time model searching, `-model gman_high` for a specific model)
-- `-vtf "path/to/local/image.vtf"` (Optional, Example: `-vtf "editor/obsolete.vtf"`)
-- `-map "map_name"` (Optional, Example: `-map d1_trainstation_01`)
+- `-game "PATH/TO/GAME/FOLDER"`<br/>(**REQUIRED**, Example: `-game "C:\Program Files (x86)\Steam\steamapps\common\Half-Life 2\hl2"`)
+- `-model "path/to/local/model.mdl"`<br/>(Optional, Example: `-model` for real-time model searching, `-model gman_high` for a specific model)
+- `-vtf "path/to/local/image.vtf"`<br/>(Optional, Example: `-vtf "editor/obsolete.vtf"`)
+- `-map "map_name"`<br/>(Optional, Example: `-map d1_trainstation_01`)
 
 6. With the command line arguments set, press the `Debug` button to run the program and have it work some magic!
 
