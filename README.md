@@ -31,6 +31,6 @@ With the command line arguments set, press the `Debug` button to run the program
 
 - PNG files generated from `-vtf` will be sent to a new folder on your desktop called `ExamineVTF`
 - OBJ/MTL files generated from `-map` will be sent to a new folder on your desktop called `SourceMaps`
-- OBJ/MTL files generated from `-model` will be sent to a new folder on your desktop called 
+- OBJ/MTL files generated from `-model` will be sent to a new folder on your desktop called `SourceModels`
 - RBXL/RBXM/PNG files generated from either `-map` or `-model` will be sent to `%localappdata%\Roblox Studio\content\source`.<br/>
 As such, this assumes you are using the [Roblox Studio Mod Manager](https://github.com/CloneTrooper1019/Roblox-Studio-Mod-Manager)!
