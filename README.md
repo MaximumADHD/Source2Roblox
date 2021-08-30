@@ -10,7 +10,7 @@ This program is still in development and isn't user-friendly.<br/>
 But if you're feeling brave enough, you can set it up with the following steps:
 
 1. Install Visual Studio 2019 with `Visual C#` and `.NET Framework 4.7.2`
-2. Fork the following GitHub repositories into a single directory:
+2. Clone the following GitHub repositories into a single directory on your file system:
    - https://github.com/CloneTrooper1019/Source2Roblox
    - https://github.com/CloneTrooper1019/ValveKeyValue
    - https://github.com/CloneTrooper1019/Roblox-File-Format
