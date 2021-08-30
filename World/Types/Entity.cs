@@ -12,9 +12,18 @@ namespace Source2Roblox.World.Types
         public readonly HashSet<Event> Events = new HashSet<Event>();
         public readonly Dictionary<string, object> Fields = new Dictionary<string, object>();
 
-        public int HammerId => GetInt("hammerId") ?? -1;
-        public string ClassName => GetString("className");
-        public override string ToString() => $"[{HammerId}] {ClassName}";
+        public string Name => GetString("targetname") ?? ClassName;
+        public string ClassName => GetString("classname");
+        
+        public override string ToString()
+        {
+            string result = ClassName;
+
+            if (!string.IsNullOrEmpty(Name) && Name != ClassName)
+                result += $" \"{Name}\"";
+
+            return result;
+        }
 
         private static object ReadField(string key, string value)
         {
@@ -38,20 +47,34 @@ namespace Source2Roblox.World.Types
                     break;
                 }
 
-                if (allNumbers && numbers.Count == 3)
+                if (allNumbers)
                 {
-                    if (key.ToLowerInvariant().Contains("color"))
+                    if (numbers.Count == 4)
                     {
                         byte r = (byte)numbers[0];
                         byte g = (byte)numbers[1];
                         byte b = (byte)numbers[2];
 
-                        result = new Color3uint8(r, g, b);
+                        var color = new Color3uint8(r, g, b);
+                        int brightness = (int)numbers[3];
+
+                        result = new Ambient(color, brightness);
                     }
-                    else
+                    else if (numbers.Count == 3)
                     {
-                        var xyz = numbers.ToArray();
-                        result = new Vector3(xyz);
+                        if (key.ToLowerInvariant().Contains("color"))
+                        {
+                            byte r = (byte)numbers[0];
+                            byte g = (byte)numbers[1];
+                            byte b = (byte)numbers[2];
+
+                            result = new Color3uint8(r, g, b);
+                        }
+                        else
+                        {
+                            var xyz = numbers.ToArray();
+                            result = new Vector3(xyz);
+                        }
                     }
                 }
             }
@@ -126,7 +149,8 @@ namespace Source2Roblox.World.Types
 
         public int? GetInt(string key)
         {
-            float? f = TryGet<float>(key);
+            object f = Get<object>(key);
+
             return (int?)f;
         }
 

@@ -95,7 +95,7 @@ namespace Source2Roblox.Geometry
         public static implicit operator RobloxVertex(StudioVertex vertex)
         {
             var oldPos = vertex.Position;
-            var newPos = new Vector3(oldPos.X, oldPos.Z, -oldPos.Y) / 10f;
+            var newPos = new Vector3(oldPos.X, oldPos.Z, -oldPos.Y) / Program.STUDS_TO_VMF;
 
             var oldNorm = vertex.Normal;
             var newNorm = new Vector3(oldNorm.X, oldNorm.Z, -oldNorm.Y);

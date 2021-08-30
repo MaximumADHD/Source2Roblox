@@ -19,7 +19,7 @@ namespace Source2Roblox.Textures
         public string DiffusePath;
         public string BumpPath;
         public string IrisPath;
-        public bool NoAlpha;
+        public bool NoAlpha = true;
 
         public Image SaveVTF(string path, string rootDir, bool? noAlpha = null)
         {
@@ -105,7 +105,7 @@ namespace Source2Roblox.Textures
                 return;
             }
 
-            if (key == "$translucent")
+            if (key == "$translucent" || key == "$alphatest")
             {
                 NoAlpha = (value != "1");
                 return;

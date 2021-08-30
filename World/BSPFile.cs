@@ -7,6 +7,8 @@ using Source2Roblox.FileSystem;
 using Source2Roblox.World.Types;
 
 using RobloxFiles.DataTypes;
+using System.Linq;
+using System.Diagnostics;
 
 namespace Source2Roblox.World
 {
@@ -42,6 +44,8 @@ namespace Source2Roblox.World
         public readonly List<DispVert> DispVerts = new List<DispVert>();
 
         public readonly List<int> SurfEdges = new List<int>();
+        public readonly List<GameLump> GameLumps = new List<GameLump>();
+
         public readonly List<BrushSide> BrushSides = new List<BrushSide>();
         public readonly List<BrushModel> BrushModels = new List<BrushModel>();
 
@@ -54,6 +58,49 @@ namespace Source2Roblox.World
 
         private const float ROUND_VERTEX_EPSILON = 0.01f;
         private const float MIN_EDGE_LENGTH_EPSILON = 0.1f;
+
+        public static MemoryStream ReadBuffer(BinaryReader reader, int offset, int length)
+        {
+            var buffer = new MemoryStream();
+            var stream = reader.BaseStream;
+
+            long restore = stream.Position;
+            stream.Position = offset;
+
+            bool didDecomp = false;
+            byte[] rawHead = reader.ReadBytes(4);
+            string head = Encoding.ASCII.GetString(rawHead);
+
+            if (head == "LZMA")
+            {
+                uint actualSize = reader.ReadUInt32();
+                int lzmaSize = reader.ReadInt32();
+
+                byte[] props = reader.ReadBytes(5);
+                byte[] compressed = reader.ReadBytes(lzmaSize);
+                byte[] decompressed = LZMA.Decompress(compressed, props, actualSize);
+
+                length = decompressed.Length;
+                Debug.Assert(length == actualSize);
+
+                buffer.SetLength(length);
+                buffer.Write(decompressed, 0, length);
+
+                didDecomp = true;
+            }
+
+            if (!didDecomp && length > 0)
+            {
+                stream.Position = offset;
+                stream.CopyTo(buffer, length);
+            }
+
+            buffer.Position = 0;
+            buffer.SetLength(length);
+            stream.Position = restore;
+
+            return buffer;
+        }
 
         private void ReadLump(BinaryReader bspReader, LumpType type)
         {
@@ -76,173 +123,129 @@ namespace Source2Roblox.World
             if (lump.Length == 0 || lump.Offset == 0)
                 return;
 
-            long restore = stream.Position;
-            stream.Position = lump.Offset;
+            int length = lump.Length;
+            int offset = lump.Offset;
 
-            using (var buffer = new MemoryStream())
+            using (var buffer = ReadBuffer(bspReader, offset, length))
+            using (var reader = new BinaryReader(buffer))
             {
-                bool didDecomp = false;
-                int length = lump.Length;
-
-                if (lump.Uncompressed > 0)
+                switch (lump.Type)
                 {
-                    byte[] rawHead = bspReader.ReadBytes(4);
-                    string head = Encoding.ASCII.GetString(rawHead);
-
-                    if (head == "LZMA")
+                    case LumpType.Entities:
                     {
-                        uint actualSize = bspReader.ReadUInt32();
-                        uint lzmaSize = bspReader.ReadUInt32();
-
-                        byte[] compressed = bspReader.ReadBytes(lump.Length - 12);
-                        byte[] decompressed = LZMA.Decompress(compressed, null, actualSize);
-
-                        length = decompressed.Length;
-                        didDecomp = true;
-
-                        buffer.SetLength(length);
-                        buffer.Write(decompressed, 0, length);
+                        Entity.ReadEntities(reader, Entities);
+                        break;
                     }
-                }
-                
-                if (!didDecomp)
-                {
-                    stream.Position = lump.Offset;
-                    stream.CopyTo(buffer, length);
-                    buffer.SetLength(length);
-                }
-                
-                buffer.Position = 0;
-                stream.Position = restore;
-                
-                using (var reader = new BinaryReader(buffer))
-                {
-                    switch (lump.Type)
+                    case LumpType.Planes:
                     {
-                        case LumpType.Entities:
-                        {
-                            Entity.ReadEntities(reader, Entities);
-                            break;
-                        }
-                        case LumpType.Planes:
-                        {
-                            reader.ReadToEnd(Planes);
-                            break;
-                        }
-                        case LumpType.TexData:
-                        {
-                            reader.ReadToEnd(TexData);
-                            break;
-                        }
-                        case LumpType.Nodes:
-                        {
-                            reader.ReadToEnd(Nodes);
-                            break;
-                        }
-                        case LumpType.Vertices:
-                        {
-                            reader.ReadToEnd(Vertices, reader.ReadVector3);
-                            break;
-                        }
-                        case LumpType.TexInfo:
-                        {
-                            reader.ReadToEnd(TexInfo);
-                            break;
-                        }
-                        case LumpType.Faces:
-                        {
-                            reader.ReadToEnd(Faces);
-                            break;
-                        }
-                        case LumpType.Leaves:
-                        {
-                            reader.ReadToEnd(Leaves, () => new Leaf(reader, this));
-                            break;
-                        }
-                        case LumpType.Edges:
-                        {
-                            reader.ReadToEnd(Edges, reader.ReadUInt16);
-                            break;
-                        }
-                        case LumpType.SurfEdges:
-                        {
-                            reader.ReadToEnd(SurfEdges, reader.ReadInt32);
-                            break;
-                        }
-                        case LumpType.Models:
-                        {
-                            reader.ReadToEnd(BrushModels);
-                            break;
-                        }
-                        case LumpType.LeafFaces:
-                        {
-                            reader.ReadToEnd(LeafFaces, reader.ReadUInt16);
-                            break;
-                        }
-                        case LumpType.LeafBrushes:
-                        {
-                            reader.ReadToEnd(LeafBrushes, reader.ReadUInt16);
-                            break;
-                        }
-                        case LumpType.Brushes:
-                        {
-                            reader.ReadToEnd(Brushes);
-                            break;
-                        }
-                        case LumpType.BrushSides:
-                        {
-                            reader.ReadToEnd(BrushSides);
-                            break;
-                        }
-                        case LumpType.Displacements:
-                        {
-                            reader.ReadToEnd(Displacements);
-                            break;
-                        }
-                        case LumpType.VertNormals:
-                        {
-                            reader.ReadToEnd(VertNormals, reader.ReadVector3);
-                            break;
-                        }
-                        case LumpType.VertNormalIndices:
-                        {
-                            reader.ReadToEnd(VertNormalIndices, reader.ReadUInt16);
-                            break;
-                        }
-                        case LumpType.DispVerts:
-                        {
-                            reader.ReadToEnd(DispVerts);
-                            break;
-                        }
-                        case LumpType.TexDataStringData:
-                        {
-                            int start = 0;
-                            
-                            while (buffer.Position < buffer.Length)
-                            {
-                                string value = reader.ReadString(null);
-                                TexDataStringData.Add(start, value);
+                        reader.ReadToEnd(Planes);
+                        break;
+                    }
+                    case LumpType.TexData:
+                    {
+                        reader.ReadToEnd(TexData);
+                        break;
+                    }
+                    case LumpType.Vertices:
+                    {
+                        reader.ReadToEnd(Vertices, reader.ReadVector3);
+                        break;
+                    }
+                    case LumpType.TexInfo:
+                    {
+                        reader.ReadToEnd(TexInfo);
+                        break;
+                    }
+                    case LumpType.Faces:
+                    {
+                        reader.ReadToEnd(Faces);
+                        break;
+                    }
+                    case LumpType.Edges:
+                    {
+                        reader.ReadToEnd(Edges, reader.ReadUInt16);
+                        break;
+                    }
+                    case LumpType.SurfEdges:
+                    {
+                        reader.ReadToEnd(SurfEdges, reader.ReadInt32);
+                        break;
+                    }
+                    case LumpType.Models:
+                    {
+                        reader.ReadToEnd(BrushModels);
+                        break;
+                    }
+                    case LumpType.Brushes:
+                    {
+                        reader.ReadToEnd(Brushes);
+                        break;
+                    }
+                    case LumpType.BrushSides:
+                    {
+                        reader.ReadToEnd(BrushSides);
+                        break;
+                    }
+                    case LumpType.Displacements:
+                    {
+                        reader.ReadToEnd(Displacements);
+                        break;
+                    }
+                    case LumpType.VertNormals:
+                    {
+                        reader.ReadToEnd(VertNormals, reader.ReadVector3);
+                        break;
+                    }
+                    case LumpType.VertNormalIndices:
+                    {
+                        reader.ReadToEnd(VertNormalIndices, reader.ReadUInt16);
+                        break;
+                    }
+                    case LumpType.DispVerts:
+                    {
+                        reader.ReadToEnd(DispVerts);
+                        break;
+                    }
+                    case LumpType.GameLump:
+                    {
+                        int numLumps = reader.ReadInt32();
 
-                                start = (int)buffer.Position;
-                            }
-
-                            break;
-                        }
-                        case LumpType.TexDataStringTable:
+                        for (int j = 0; j < numLumps; j++)
                         {
-                            reader.ReadToEnd(TexDataStringTable, reader.ReadInt32);
-                            break;
+                            var gameLump = new GameLump(reader);
+                            GameLumps.Add(gameLump);
                         }
-                        case LumpType.DispTris:
-                        {
-                            reader.ReadToEnd(DispTris, () =>
-                            {
-                                var tags = reader.ReadUInt16();
-                                return (DispTriTags)tags;
-                            });
 
-                            break;
+                        break;
+                    }
+                    case LumpType.TexDataStringData:
+                    {
+                        int start = 0;
+
+                        while (buffer.Position < buffer.Length)
+                        {
+                            string value = reader.ReadString(null);
+                            TexDataStringData.Add(start, value);
+
+                            start = (int)buffer.Position;
                         }
+
+                        break;
+                    }
+                    case LumpType.TexDataStringTable:
+                    {
+                        reader.ReadToEnd(TexDataStringTable, reader.ReadInt32);
+                        break;
+                    }
+                    case LumpType.DispTris:
+                    {
+                        reader.ReadToEnd(DispTris, () =>
+                        {
+                            var tags = reader.ReadUInt16();
+                            return (DispTriTags)tags;
+                        });
+
+                        break;
                     }
                 }
             }
@@ -266,7 +269,23 @@ namespace Source2Roblox.World
                 }
 
                 MapRevision = reader.ReadInt32();
+                GameLumps.ForEach(gameLump => gameLump.Read(reader));
             }
+        }
+
+        public Entity FindEntityByClass(string className)
+        {
+            return Entities.Find(ent => ent.ClassName == className);
+        }
+
+        public Entity FindEntityByName(string name)
+        {
+            return Entities.Find(ent => ent.Name == name);
+        }
+
+        public GameLump FindGameLump(string id)
+        {
+            return GameLumps.Find(lump => lump.Id == id);
         }
 
         private static float RoundCoord(float value)

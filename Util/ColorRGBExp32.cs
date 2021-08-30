@@ -44,7 +44,7 @@ namespace Source2Roblox.Util
                  g = color.G,
                  b = color.B;
 
-            return Color.FromArgb(a, r, g, b);
+            return new ColorRGBExp32(r, g, b, a);
         }
     }
 }

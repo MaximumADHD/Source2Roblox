@@ -13,6 +13,18 @@ namespace Source2Roblox.Models
     // Special thanks for their research into this spec!
     // https://github.com/magcius/noclip.website/blob/master/src/SourceEngine/Studio.ts
 
+    public class MeshBuffer
+    {
+        public string BodyPart;
+        public string MaterialPath;
+
+        public int NumVerts => Vertices.Count;
+        public List<StudioVertex> Vertices;
+
+        public int NumIndices => Indices.Count;
+        public List<ushort> Indices;
+    }
+
     public class ModelFile
     {
         public readonly GameMount Game;

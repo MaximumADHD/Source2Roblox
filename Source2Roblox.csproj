@@ -65,8 +65,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Geometry\MeshBuffer.cs" />
-    <Compile Include="Geometry\RobloxMesh.cs" />
+    <Compile Include="Geometry\MeshTypes\ObjMesh.cs" />
+    <Compile Include="Geometry\MeshTypes\PhysicsMesh.cs" />
+    <Compile Include="Geometry\MeshTypes\RobloxMesh.cs" />
+    <Compile Include="Geometry\WorldGeometry.cs" />
     <Compile Include="Models\Constants.cs" />
     <Compile Include="Geometry\TriangleData.cs" />
     <Compile Include="Geometry\VertexData.cs" />
@@ -78,6 +80,9 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Textures\ValveMaterial.cs" />
+    <Compile Include="World\Types\Ambient.cs" />
+    <Compile Include="World\Types\Game.cs" />
+    <Compile Include="World\Types\Props.cs" />
     <Compile Include="World\Winding.cs" />
     <Compile Include="World\BSPFile.cs" />
     <Compile Include="Util\ColorRGBExp32.cs" />

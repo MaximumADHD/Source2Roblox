@@ -22,7 +22,7 @@ namespace Source2Roblox.Geometry
 
         public static implicit operator StudioVertex(RobloxVertex vertex)
         {
-            var oldPos = vertex.Position * 10f;
+            var oldPos = vertex.Position * Program.STUDS_TO_VMF;
             var newPos = new Vector3(oldPos.X, -oldPos.Z, oldPos.Y);
 
             var oldNorm = vertex.Normal;
@@ -41,6 +41,11 @@ namespace Source2Roblox.Geometry
                 Normal = newNorm,
                 UV = newUV,
             };
+        }
+
+        public void SetUV(Vector2 uv)
+        {
+            UV = new Vector3(uv.X, 1f - uv.Y);
         }
     }
 
@@ -68,10 +73,10 @@ namespace Source2Roblox.Geometry
         public ushort NumMeshes = 0;
 
         public int NumVerts = 0;
-        public List<RobloxVertex> Verts;
+        public List<RobloxVertex> Verts = new List<RobloxVertex>();
 
         public int NumFaces = 0;
-        public List<int[]> Faces;
+        public List<int[]> Faces = new List<int[]>();
 
         public short NumLODs;
         public List<int> LODs;
@@ -397,6 +402,8 @@ namespace Source2Roblox.Geometry
             const ushort LOD_Size = 4;
 
             byte[] VersionHeader = Encoding.UTF8.GetBytes("version 3.00\n");
+            stream.SetLength(0);
+            stream.Position = 0;
 
             if (NumLODs == 0)
             {
