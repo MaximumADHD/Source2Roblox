@@ -11,19 +11,19 @@ But if you're feeling brave enough, you can set it up with the following steps:
 
 1. Install Visual Studio 2019 with `Visual C#` and `.NET Framework 4.7.2`
 2. Fork the following GitHub repositories into a single directory:
-- `https://github.com/CloneTrooper1019/Source2Roblox`
-- `https://github.com/CloneTrooper1019/ValveKeyValue`
-- `https://github.com/CloneTrooper1019/Roblox-File-Format`
+- https://github.com/CloneTrooper1019/Source2Roblox
+- https://github.com/CloneTrooper1019/ValveKeyValue
+- https://github.com/CloneTrooper1019/Roblox-File-Format
 3. Open the solution file `Source2Roblox.sln`
 4. Right click on the `Source2Roblox` project and click Properties
 5. Navigate to the `Debug` tab, and use some of the following command line arguments to get things up and running:
 
 - `-game "PATH/TO/GAME/FOLDER"` (**REQUIRED**, Example: `-game "C:\Program Files (x86)\Steam\steamapps\common\Half-Life 2\hl2"`)
-- `-model "path/to/local/model.mdl" (Optional, Example: `-model` for real-time model searching, `-model gman_high` for a specific model)
-- `-vtf "path/to/local/image.vtf" (Optional, Example: `-vtf "editor/obsolete.vtf"`)
-- `-map "map_name" (Optional, Example: `-map d1_trainstation_01`)
+- `-model "path/to/local/model.mdl"` (Optional, Example: `-model` for real-time model searching, `-model gman_high` for a specific model)
+- `-vtf "path/to/local/image.vtf"` (Optional, Example: `-vtf "editor/obsolete.vtf"`)
+- `-map "map_name"` (Optional, Example: `-map d1_trainstation_01`)
 
-6. With the command line arguments set, press the `Debug` button to run the program and have it work some magic.
+6. With the command line arguments set, press the `Debug` button to run the program and have it work some magic!
 
 ## File Generation Notes
 
