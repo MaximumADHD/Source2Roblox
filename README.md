@@ -9,8 +9,8 @@ A super awesome C# console application that can:
 This program is still in development and isn't user-friendly.<br/>
 But if you're feeling brave enough, you can set it up with the following steps:
 
-1. Install Visual Studio 2019 with `Visual C#` and `.NET Framework 4.7.2`
-2. If you wish to view maps locally without uploading them to Roblox, you'll need to install the [Roblox Studio Mod Manager](https://github.com/CloneTrooper1019/Roblox-Studio-Mod-Manager) since the program currently targets `%localappdata%\Roblox Studio\content` for deploying local files. I will be adding a command line option to specify a different Studio path soon.
+1. You'll need to install the [Roblox Studio Mod Manager](https://github.com/CloneTrooper1019/Roblox-Studio-Mod-Manager) since the program currently targets `%localappdata%\Roblox Studio\content` for deploying local files. I will be adding a command line option to specify a different Studio path soon.
+2. Install Visual Studio 2019 with `Visual C#` and `.NET Framework 4.7.2`
 3. Clone the following GitHub repositories into a single directory on your file system:
    - https://github.com/CloneTrooper1019/Source2Roblox
    - https://github.com/CloneTrooper1019/ValveKeyValue
