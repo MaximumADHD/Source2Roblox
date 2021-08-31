@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Win32;
 using Newtonsoft.Json;
 
-namespace Source2Roblox.Util
+namespace Source2Roblox.Upload
 {
     public class RobloxWebClient : WebClient
     {
@@ -41,6 +41,7 @@ namespace Source2Roblox.Util
             Headers.Set(HttpRequestHeader.Cookie, ROBLOX_COOKIES);
             Headers.Set(HttpRequestHeader.CacheControl, "no-cache");
             Headers.Set(HttpRequestHeader.AcceptEncoding, "gzip, deflate");
+            Headers.Set(HttpRequestHeader.UserAgent, "RobloxStudio/WinInet");
         }
 
         public async Task<T> DownloadJson<T>(string url)
@@ -52,7 +53,6 @@ namespace Source2Roblox.Util
         protected override WebRequest GetWebRequest(Uri address)
         {
             var request = base.GetWebRequest(address) as HttpWebRequest;
-            request.Headers.Set(HttpRequestHeader.UserAgent, "RobloxStudio/WinInet");
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
 
             return request;

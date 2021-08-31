@@ -1,32 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Diagnostics;
 using System.IO;
-
 using Source2Roblox.FileSystem;
 using Source2Roblox.Geometry;
 using Source2Roblox.Models;
 using Source2Roblox.Textures;
 using Source2Roblox.World;
 
-using RobloxFiles;
-using RobloxFiles.Enums;
-using RobloxFiles.DataTypes;
-using System.Linq;
-
-using ValveKeyValue;
-using Source2Roblox.Util;
-using Source2Roblox.Geometry.MeshTypes;
-
 namespace Source2Roblox
 {
     class Program
     {
         private static readonly Dictionary<string, string> argMap = new Dictionary<string, string>();
+        
         public static GameMount GameMount { get; private set; }
 
         public const int STUDS_TO_VMF = 16;
+        public static readonly bool LOCAL_ONLY = false;
         
         public static string GetArg(string argName)
         {
@@ -46,6 +36,7 @@ namespace Source2Roblox
             return cleaned;
         }
 
+        [STAThread]
         static void Main(string[] args)
         {
             #region Process Launch Options

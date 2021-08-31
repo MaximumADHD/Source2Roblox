@@ -57,6 +57,7 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -65,6 +66,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Forms\Uploader.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Uploader.Designer.cs">
+      <DependentUpon>Uploader.cs</DependentUpon>
+    </Compile>
     <Compile Include="Geometry\MeshTypes\ObjMesh.cs" />
     <Compile Include="Geometry\MeshTypes\PhysicsMesh.cs" />
     <Compile Include="Geometry\MeshTypes\RobloxMesh.cs" />
@@ -74,9 +81,15 @@
     <Compile Include="Geometry\VertexData.cs" />
     <Compile Include="Octree\OctreeNode.cs" />
     <Compile Include="Octree\OctreeRegion.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Upload\AssetManager.cs" />
     <Compile Include="Util\Formatting.cs" />
     <Compile Include="Octree\Octree.cs" />
-    <Compile Include="Util\RobloxWebClient.cs">
+    <Compile Include="Upload\RobloxWebClient.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Textures\ValveMaterial.cs" />
@@ -137,6 +150,11 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
