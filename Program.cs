@@ -16,7 +16,7 @@ namespace Source2Roblox
         public static GameMount GameMount { get; private set; }
 
         public const int STUDS_TO_VMF = 16;
-        public static readonly bool LOCAL_ONLY = false;
+        public static bool LOCAL_ONLY = true;
         
         public static string GetArg(string argName)
         {
@@ -63,12 +63,16 @@ namespace Source2Roblox
             #endregion
 
             string model   = GetArg("-model");
+            string upload  = GetArg("-upload");
             string gameDir = GetArg("-game");
             string mapName = GetArg("-map");
             string vtfName = GetArg("-vtf");
-            
+
             if (gameDir == null)
                 return;
+
+            if (upload != null)
+                LOCAL_ONLY = false;
 
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             GameMount = new GameMount(gameDir);

@@ -16,6 +16,7 @@ using Source2Roblox.World.Types;
 using Source2Roblox.Geometry.MeshTypes;
 using Source2Roblox.Upload;
 using System.Threading.Tasks;
+using Source2Roblox.Octree;
 
 namespace Source2Roblox.Geometry
 {
@@ -241,6 +242,10 @@ namespace Source2Roblox.Geometry
                 }
 
                 string matPath = meshBuffer.MaterialPath;
+
+                if (matPath == "")
+                    matPath = "editor/wireframe.wmt";
+
                 var info = new FileInfo(matPath);
 
                 string matName = info.Name.Replace(".vmt", "");
@@ -267,9 +272,14 @@ namespace Source2Roblox.Geometry
                 string meshWorkDir = Path.Combine(rootWorkDir, meshDir);
                 Directory.CreateDirectory(meshWorkDir);
 
+                var physicsMesh = new PhysicsMesh(mesh);
+                var physics = physicsMesh.Serialize();
+
                 var meshPart = new MeshPart()
                 {
                     MeshId = $"{rbxAssetDir}/{meshDir}/{name}.mesh",
+                    Material = vmt?.Material ?? Material.Plastic,
+                    PhysicalConfigData = physics,
                     InitialSize = aabb.Size,
                     CFrame = aabb.CFrame,
                     DoubleSided = true,
@@ -294,13 +304,13 @@ namespace Source2Roblox.Geometry
                     string bumpPath = vmt.BumpPath;
                     string irisPath = vmt.IrisPath;
 
+                    if (vmt.SelfIllum)
+                        meshPart.CastShadow = false;
+
                     if (!string.IsNullOrEmpty(bumpPath) || !noAlpha)
                     {
-                        var surface = new SurfaceAppearance()
-                        {
-                            AlphaMode = noAlpha ? AlphaMode.Overlay : AlphaMode.Transparency,
-                            ColorMap = meshPart.TextureID,
-                        };
+                        var surface = new SurfaceAppearance() { AlphaMode = noAlpha ? AlphaMode.Overlay : AlphaMode.Transparency };
+                        assetManager.BindAssetId(diffuseRoblox, uploadPool, surface, "ColorMap");
 
                         if (!string.IsNullOrEmpty(bumpPath))
                         {
@@ -494,7 +504,8 @@ namespace Source2Roblox.Geometry
             Console.WriteLine("Writing Roblox files...");
             Directory.CreateDirectory(mapDir);
 
-            var map = new XmlRobloxFile();
+            var uploadPool = new List<Task>();
+            var map = new BinaryRobloxFile();
 
             var lighting = new Lighting()
             {
@@ -540,7 +551,6 @@ namespace Source2Roblox.Geometry
                         if (material == null)
                             continue;
 
-                        Property prop = pair.Value;
                         string diffuse = material.DiffusePath;
 
                         if (string.IsNullOrEmpty(diffuse))
@@ -548,7 +558,9 @@ namespace Source2Roblox.Geometry
 
                         string png = diffuse.Replace(".vtf", ".png");
                         material.SaveVTF(diffuse, sourceDir, true);
-                        prop.Value = assetManager.GetAssetId(png);
+
+                        string prop = pair.Value.Name;
+                        assetManager.BindAssetId(png, uploadPool, sky, prop);
                     }
 
                     sky.Parent = lighting;
@@ -576,8 +588,6 @@ namespace Source2Roblox.Geometry
 
             var materialSets = geometry.Materials;
             var clusters = geometry.FaceClusters;
-
-            var uploadPool = new List<Task>();
             var objMesh = geometry.Mesh;
             
             int clusterId = 0;
@@ -755,6 +765,8 @@ namespace Source2Roblox.Geometry
 
                             assetManager.BindAssetId(png, uploadPool, surface, "NormalMap");
                         }
+
+                        meshPart.Material = vmt.Material;
                     }
 
                     mesh.NumVerts = mesh.Verts.Count;
@@ -767,8 +779,11 @@ namespace Source2Roblox.Geometry
 
             var staticProps = geometry.StaticProps;
             var detailProps = geometry.DetailProps;
+            var physicsProps = bsp.FindEntitiesOfClass("prop_physics");
 
+            var partTree = new Octree<BasePart>();
             var modelNames = new HashSet<string>();
+
             var models = new Dictionary<string, Model>();
             Console.WriteLine("Collecting models...");
 
@@ -786,6 +801,19 @@ namespace Source2Roblox.Geometry
             {
                 var set = detailProps.Names;
                 set.ForEach(name => modelNames.Add(name));
+            }
+
+            foreach (var prop in physicsProps)
+            {
+                var modelName = prop.Get<string>("model");
+
+                if (modelName == null)
+                    continue;
+
+                if (!GameMount.HasFile(modelName, game))
+                    continue;
+
+                modelNames.Add(modelName);
             }
 
             foreach (string modelName in modelNames)
@@ -811,6 +839,121 @@ namespace Source2Roblox.Geometry
 
                 Debug.Assert(model != null, $"Error fetching model: {modelName}!");
                 models[modelName] = model;
+            }
+
+            foreach (var prop in staticProps)
+            {
+                if (!models.TryGetValue(prop.Name, out var modelSource))
+                    continue;
+
+                var origin = prop.Position;
+                var angles = prop.Rotation;
+
+                var model = modelSource.Clone() as Model;
+                var cf = Entity.GetCFrame(origin, angles);
+
+                model.PivotTo(cf);
+                model.Parent = workspace;
+
+                foreach (var part in model.GetDescendantsOfType<BasePart>())
+                {
+                    var position = part.Position;
+                    partTree.CreateNode(position, part);
+                }
+            }
+
+            foreach (var prop in physicsProps)
+            {
+                var origin = prop.Get<Vector3>("origin");
+                var angles = prop.Get<Vector3>("angles");
+
+                if (origin != null && angles != null)
+                {
+                    var modelName = prop.Get<string>("model");
+
+                    if (!models.TryGetValue(modelName, out var modelSource))
+                        continue;
+
+                    var model = modelSource.Clone() as Model;
+                    var cf = Entity.GetCFrame(origin, angles);
+                    var primary = model.PrimaryPart;
+
+                    model.PivotTo(cf);
+                    model.Parent = workspace;
+
+                    foreach (var part in model.GetDescendantsOfType<BasePart>())
+                    {
+                        part.Anchored = false;
+
+                        if (primary != null)
+                        {
+                            if (primary == part)
+                                continue;
+
+                            var weld = new Weld()
+                            {
+                                C0 = primary.CFrame.ToObjectSpace(part.CFrame),
+                                Part0 = primary,
+                                Part1 = part,
+                                Parent = part
+                            };
+                        }
+                    }
+                }
+            }
+
+            var pointLights = bsp.FindEntitiesOfClass("light");
+            var spotLights = bsp.FindEntitiesOfClass("light_spot");
+            var lights = pointLights.Concat(spotLights);
+
+            foreach (var lightEnt in lights)
+            {
+                var position = lightEnt.Get<Vector3>("origin");
+                var rotation = lightEnt.Get<Vector3>("angles");
+
+                if (position != null && rotation != null)
+                {
+                    Ambient? effects = lightEnt.TryGet<Ambient>("_light");
+                    float? pitch = lightEnt.TryGet<float>("pitch");
+
+                    string className = lightEnt.ClassName;
+                    Light light = null;
+
+                    if (className == "light")
+                    {
+                        light = new PointLight() { Range = 60 };
+                    }
+                    else if (className == "light_spot")
+                    {
+                        float? cone = lightEnt.TryGet<float>("_cone");
+
+                        light = new SpotLight() 
+                        {
+                            Angle = cone ?? 45,
+                            Face = NormalId.Bottom,
+                            Range = 60
+                        };
+                    }
+
+                    if (pitch != null)
+                        rotation = new Vector3(pitch.Value, rotation.Y, rotation.Z);
+
+                    var emitter = new Part()
+                    {
+                        Name = lightEnt.Name,
+                        CFrame = Entity.GetCFrame(position, rotation),
+                        Size = new Vector3(),
+                        Anchored = true,
+                        CanCollide = false,
+                        CanTouch = false,
+                        Transparency = 1,
+                        Parent = workspace
+                    };
+
+                    light.Brightness = (effects?.Brightness ?? 1000f) / 1000f;
+                    light.Color = effects?.Color ?? new Color3(1, 1, 1);
+                    light.Parent = emitter;
+                }
             }
 
             var uploadTask = Task.WhenAll(uploadPool);

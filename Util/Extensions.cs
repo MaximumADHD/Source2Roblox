@@ -9,7 +9,6 @@ using System.Text;
 using RobloxFiles.DataTypes;
 using Microsoft.Win32;
 using RobloxFiles;
-using System.Linq;
 
 public static class Extensions
 {
@@ -159,38 +158,35 @@ public static class Extensions
               max_Y = float.MinValue,
               max_Z = float.MinValue;
 
-        foreach (var desc in model.GetDescendants())
+        foreach (var part in model.GetDescendantsOfType<BasePart>())
         {
-            if (desc is BasePart part)
-            {
-                var cf = part.CFrame;
-                var size = part.Size;
+            var cf = part.CFrame;
+            var size = part.Size;
 
-                float sx = size.X,
-                      sy = size.Y,
-                      sz = size.Z;
+            float sx = size.X,
+                  sy = size.Y,
+                  sz = size.Z;
 
-                var matrix = cf.GetComponents();
-                
-                float x   = matrix[0], y   = matrix[1],  z   = matrix[2],
-                      R00 = matrix[3], R01 = matrix[4],  R02 = matrix[5],
-                      R10 = matrix[6], R11 = matrix[7],  R12 = matrix[8],
-                      R20 = matrix[9], R21 = matrix[10], R22 = matrix[11];
+            var matrix = cf.GetComponents();
 
-                // https://zeuxcg.org/2010/10/17/aabb-from-obb-with-component-wise-abs/
+            float x   = matrix[0], y   = matrix[1],  z   = matrix[2],
+                  R00 = matrix[3], R01 = matrix[4],  R02 = matrix[5],
+                  R10 = matrix[6], R11 = matrix[7],  R12 = matrix[8],
+                  R20 = matrix[9], R21 = matrix[10], R22 = matrix[11];
 
-                float ws_X = (abs(R00) * sx + abs(R01) * sy + abs(R02) * sz) / 2f,
-                      ws_Y = (abs(R10) * sx + abs(R11) * sy + abs(R12) * sz) / 2f,
-                      ws_Z = (abs(R20) * sx + abs(R21) * sy + abs(R22) * sz) / 2f;
+            // https://zeuxcg.org/2010/10/17/aabb-from-obb-with-component-wise-abs/
 
-                min_X = Math.Min(min_X, x - ws_X);
-                min_Y = Math.Min(min_Y, y - ws_Y);
-                min_Z = Math.Min(min_Z, z - ws_Z);
+            float ws_X = (abs(R00) * sx + abs(R01) * sy + abs(R02) * sz) / 2f,
+                  ws_Y = (abs(R10) * sx + abs(R11) * sy + abs(R12) * sz) / 2f,
+                  ws_Z = (abs(R20) * sx + abs(R21) * sy + abs(R22) * sz) / 2f;
 
-                max_X = Math.Max(max_X, x + ws_X);
-                max_Y = Math.Max(max_Y, y + ws_Y);
-                max_Z = Math.Max(max_Z, z + ws_Z);
-            }
+            min_X = Math.Min(min_X, x - ws_X);
+            min_Y = Math.Min(min_Y, y - ws_Y);
+            min_Z = Math.Min(min_Z, z - ws_Z);
+
+            max_X = Math.Max(max_X, x + ws_X);
+            max_Y = Math.Max(max_Y, y + ws_Y);
+            max_Z = Math.Max(max_Z, z + ws_Z);
         }
 
         var min = new Vector3(min_X, min_Y, min_Z);
@@ -209,9 +205,9 @@ public static class Extensions
         var reference = primary.CFrame;
         primary.CFrame = cf;
 
-        foreach (var desc in model.GetDescendants())
+        foreach (var part in model.GetDescendantsOfType<BasePart>())
         {
-            if (desc is BasePart part && part != primary)
+            if (part != primary)
             {
                 var offset = reference.ToObjectSpace(part.CFrame);
                 part.CFrame = cf * offset;
@@ -248,13 +244,10 @@ public static class Extensions
                 }
             }
 
-            foreach (var desc in model.GetDescendants())
+            foreach (var part in model.GetDescendantsOfType<BasePart>())
             {
-                if (desc is BasePart part)
-                {
-                    var offset = worldPivot.ToObjectSpace(part.CFrame);
-                    part.CFrame = cf * offset;
-                }
+                var offset = worldPivot.ToObjectSpace(part.CFrame);
+                part.CFrame = cf * offset;
             }
         }
     }

@@ -154,6 +154,22 @@ namespace Source2Roblox.World.Types
             return (int?)f;
         }
 
+        public static CFrame GetCFrame(Vector3 origin, Vector3 angles)
+        {
+            const float deg2Rad = (float)Math.PI / 180f;
+            const float halfPi = (float)Math.PI / 2f;
+
+            origin /= Program.STUDS_TO_VMF;
+            angles *= deg2Rad;
+
+            var cf = new CFrame(origin.X, origin.Z, -origin.Y)
+                   *     CFrame.Angles(0, -halfPi, 0)
+                   *     CFrame.Angles(0, angles.Y, 0)
+                   *     CFrame.Angles(-angles.X, halfPi, -angles.Z);
+
+            return cf;
+        }
+
         public static void ReadEntities(BinaryReader reader, List<Entity> entities)
         {
             var buffer = new List<byte>();

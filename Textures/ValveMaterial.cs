@@ -6,6 +6,7 @@ using System.IO;
 using ValveKeyValue;
 using Source2Roblox.FileSystem;
 using System.Linq;
+using RobloxFiles.Enums;
 
 namespace Source2Roblox.Textures
 {
@@ -20,6 +21,8 @@ namespace Source2Roblox.Textures
         public string BumpPath;
         public string IrisPath;
         public bool NoAlpha = true;
+        public bool SelfIllum = true;
+        public Material Material = Material.Plastic;
 
         public Image SaveVTF(string path, string rootDir, bool? noAlpha = null)
         {
@@ -85,37 +88,193 @@ namespace Source2Roblox.Textures
             string key = entry.Name.ToLowerInvariant();
             var value = entry.Value.ToString();
 
-            if (key == ">=dx90_20b")
+            switch (key)
             {
-                foreach (var child in entry.Children)
-                    ReadEntry(child);
+                case ">=dx90_20b":
+                {
+                    foreach (var child in entry.Children)
+                        ReadEntry(child);
 
-                return;
-            }
+                    break;
+                }
+                case "$basetexture":
+                {
+                    DiffusePath = $"materials/{value}.vtf";
+                    break;
+                }
+                case "$bumpmap":
+                {
+                    BumpPath = $"materials/{value}.vtf";
+                    break;
+                }
+                case "$selfillum":
+                {
+                    SelfIllum = (value == "1");
+                    break;
+                }
+                case "$alphatest":
+                case "$translucent":
+                {
+                    NoAlpha = (value != "1");
+                    break;
+                }
+                case "$iris":
+                {
+                    IrisPath = $"materials/{value}.vtf";
+                    break;
+                }
+                case "$surfaceprop":
+                {
+                    switch (value.ToLowerInvariant())
+                    {
+                        case "brick":
+                        {
+                            Material = Material.Brick;
+                            break;
+                        }
 
-            if (key == "$basetexture")
-            {
-                DiffusePath = $"materials/{value}.vtf";
-                return;
-            }
+                        case "concrete":
+                        case "concrete_block":
+                        {
+                            Material = Material.Concrete;
+                            break;
+                        }
 
-            if (key == "$bumpmap")
-            {
-                BumpPath = $"materials/{value}.vtf";
-                return;
-            }
+                        case "baserock":
+                        case "boulder":
+                        case "gravel":
+                        case "rock":
+                        {
+                            Material = Material.Slate;
+                            break;
+                        }
 
-            if (key == "$translucent" || key == "$alphatest")
-            {
-                NoAlpha = (value != "1");
-                return;
-            }
+                        case "canister":
+                        case "chain":
+                        case "chainlink":
+                        case "combine_metal":
+                        case "crowbar":
+                        case "floating_metal_barrel":
+                        case "grenade":
+                        case "metal":
+                        case "metal_barrel":
+                        case "metal_bouncy":
+                        case "metal_box":
+                        case "metal_seafloorcar":
+                        case "metalgrate":
+                        case "metalpanel":
+                        case "metalvent":
+                        case "metalvehicle":
+                        case "paintcan":
+                        case "popcan":
+                        case "roller":
+                        case "slipperymetal":
+                        case "solidmetal":
+                        case "strider":
+                        case "weapon":
+                        {
+                            Material = Material.Metal;
+                            break;
+                        }
 
-            if (key == "$iris")
-            {
-                IrisPath = $"materials/{value}.vtf";
-                return;
-            }
+                        case "wood":
+                        case "wood_box":
+                        case "wood_crate":
+                        case "wood_furniture":
+                        case "wood_lowdensity":
+                        case "wood_plank":
+                        case "wood_panel":
+                        case "wood_solid":
+                        {
+                            Material = Material.Wood;
+                            break;
+                        }
+
+                        case "glass":
+                        case "glassbottle":
+                        case "combine_glass":
+                        {
+                            Material = Material.Glass;
+                            break;
+                        }
+
+                        case "slime":
+                        case "water":
+                        case "wade":
+                        case "puddle":
+                        case "slipperyslime":
+                        {
+                            Material = Material.Water;
+                            break;
+                        }
+
+                        case "ice":
+                        {
+                            Material = Material.Glacier;
+                            break;
+                        }
+
+                        case "snow":
+                        {
+                            Material = Material.Snow;
+                            break;
+                        }
+
+                        case "grass":
+                        {
+                            Material = Material.Grass;
+                            break;
+                        }
+
+                        case "dirt":
+                        case "mud":
+                        {
+                            Material = Material.Mud;
+                            break;
+                        }
+
+                        case "sand":
+                        case "quicksand":
+                        {
+                            Material = Material.Sand;
+                            break;
+                        }
+
+                        case "ceiling_tile":
+                        case "computer":
+                        case "pottery":
+                        case "tile":
+                        {
+                            Material = Material.Marble;
+                            break;
+                        }
+
+                        case "carpet":
+                        case "paper":
+                        case "papercup":
+                        case "cardboard":
+                        case "rubber":
+                        case "rubbertire":
+                        case "slidingrubbertire":
+                        case "slidingrubbertire_front":
+                        case "slidingrubbertire_rear":
+                        case "jeeptire":
+                        case "brakingrubbertire":
+                        {
+                            Material = Material.Fabric;
+                            break;
+                        }
+
+                        case "asphalt":
+                        {
+                            Material = Material.Asphalt;
+                            break;
+                        }
+                    }
+
+                    break;
+                }
+            }   
         }
 
         public ValveMaterial(string path, GameMount game = null)

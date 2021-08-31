@@ -43,7 +43,7 @@ namespace Source2Roblox.Upload
             string filePath = Path.Combine(RootDir, localPath);
             string assetPath = filePath + ".asset";
 
-            if (!File.Exists(assetPath))
+            if (!File.Exists(assetPath) && !Program.LOCAL_ONLY)
             {
                 var uploadForm = new Uploader(filePath);
 
@@ -135,7 +135,7 @@ namespace Source2Roblox.Upload
 
             return Task.Run(() =>
             {
-                if (File.Exists(assetPath))
+                if (File.Exists(assetPath) && !Program.LOCAL_ONLY)
                 {
                     string assetId = File.ReadAllText(assetPath);
                     return $"rbxassetid://{assetId}";
