@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Source2Roblox.Forms
@@ -14,7 +15,6 @@ namespace Source2Roblox.Forms
         public Uploader(string assetPath)
         {
             var info = new FileInfo(assetPath);
-
             InitializeComponent();
             AssetPath = assetPath;
 
@@ -23,6 +23,15 @@ namespace Source2Roblox.Forms
                 Upload = false;
                 Close();
 
+                return;
+            }
+
+            if (Program.NO_PROMPT)
+            {
+                Console.WriteLine($"-noPrompt requested in upload of {assetPath}, proceeding...");
+                Upload = true;
+
+                Close();
                 return;
             }
 
@@ -47,23 +56,26 @@ namespace Source2Roblox.Forms
 
             if (info.Extension == ".png")
             {
-                var image = Image.FromFile(AssetPath);
-                preview.BackgroundImage = image;
+                using (var stream = File.OpenRead(AssetPath))
+                {
+                    var image = Image.FromStream(stream);
+                    preview.BackgroundImage = image;
+                }
             }
         }
 
-        private void upload_Click(object sender, EventArgs e)
+        private void OnUploadClicked(object sender, EventArgs e)
         {
             Upload = true;
             Close();
         }
 
-        private void edit_Click(object sender, EventArgs e)
+        private void OnEditClicked(object sender, EventArgs e)
         {
             Process.Start(AssetPath);
         }
 
-        private void keepLocal_Click(object sender, EventArgs e)
+        private void OnKeepLocalClicked(object sender, EventArgs e)
         {
             Upload = false;
             Close();

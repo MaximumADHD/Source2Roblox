@@ -12,11 +12,11 @@ namespace Source2Roblox
     class Program
     {
         private static readonly Dictionary<string, string> argMap = new Dictionary<string, string>();
-        
         public static GameMount GameMount { get; private set; }
 
-        public const int STUDS_TO_VMF = 16;
+        public const int STUDS_TO_VMF = 12;
         public static bool LOCAL_ONLY = true;
+        public static bool NO_PROMPT = false;
         
         public static string GetArg(string argName)
         {
@@ -62,9 +62,12 @@ namespace Source2Roblox
                 argMap.Add(argKey, "");
             #endregion
 
-            string model   = GetArg("-model");
-            string upload  = GetArg("-upload");
+            string upload   = GetArg("-upload");
+            string noPrompt = GetArg("-noPrompt");
+
             string gameDir = GetArg("-game");
+            string model = GetArg("-model");
+
             string mapName = GetArg("-map");
             string vtfName = GetArg("-vtf");
 
@@ -73,6 +76,9 @@ namespace Source2Roblox
 
             if (upload != null)
                 LOCAL_ONLY = false;
+
+            if (noPrompt != null)
+                NO_PROMPT = true;
 
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             GameMount = new GameMount(gameDir);

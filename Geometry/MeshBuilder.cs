@@ -62,7 +62,6 @@ namespace Source2Roblox.Geometry
 
             var objMesh = new ObjMesh();
             var meshBuffers = new List<MeshBuffer>();
-            var handledFiles = new HashSet<string>();
             
             for (int bodyPart = 0; bodyPart < model.BodyPartCount; bodyPart++)
             {
@@ -193,7 +192,6 @@ namespace Source2Roblox.Geometry
                 meshBuffers.AddRange(meshes);
             }
 
-            var handledFiles = new HashSet<string>();
             string lastBodyPart = "";
 
             foreach (var meshBuffer in meshBuffers)
@@ -244,12 +242,11 @@ namespace Source2Roblox.Geometry
                 string matPath = meshBuffer.MaterialPath;
 
                 if (matPath == "")
-                    matPath = "editor/wireframe.wmt";
+                    matPath = "error.vmt";
 
                 var info = new FileInfo(matPath);
-
-                string matName = info.Name.Replace(".vmt", "");
                 string name = meshBuffer.BodyPart;
+                string matName = info.Name.Replace(".vmt", "");
 
                 if (name == lastBodyPart)
                     name = matName;
@@ -272,14 +269,9 @@ namespace Source2Roblox.Geometry
                 string meshWorkDir = Path.Combine(rootWorkDir, meshDir);
                 Directory.CreateDirectory(meshWorkDir);
 
-                var physicsMesh = new PhysicsMesh(mesh);
-                var physics = physicsMesh.Serialize();
-
                 var meshPart = new MeshPart()
                 {
-                    MeshId = $"{rbxAssetDir}/{meshDir}/{name}.mesh",
                     Material = vmt?.Material ?? Material.Plastic,
-                    PhysicalConfigData = physics,
                     InitialSize = aabb.Size,
                     CFrame = aabb.CFrame,
                     DoubleSided = true,
@@ -288,7 +280,16 @@ namespace Source2Roblox.Geometry
                     Name = name,
                 };
 
+                string meshPath = Path.Combine(meshWorkDir, $"{name}.mesh");
                 string diffusePath = vmt?.DiffusePath;
+
+                using (var stream = File.OpenWrite(meshPath))
+                {
+                    mesh.Save(stream);
+                    Console.WriteLine($"\tWrote {meshPath}");
+                }
+
+                assetManager.BindAssetId($"{meshDir}/{name}.mesh", uploadPool, meshPart, "MeshId");
 
                 if (string.IsNullOrEmpty(diffusePath))
                 {
@@ -365,14 +366,6 @@ namespace Source2Roblox.Geometry
 
                         surface.Parent = meshPart;
                     }
-                }
-
-                string meshPath = Path.Combine(meshWorkDir, $"{name}.mesh");
-
-                using (var stream = File.OpenWrite(meshPath))
-                {
-                    mesh.Save(stream);
-                    Console.WriteLine($"\tWrote {meshPath}");
                 }
 
                 meshPart.Parent = exportModel;
@@ -728,7 +721,6 @@ namespace Source2Roblox.Geometry
 
                     var meshPart = new MeshPart()
                     {
-                        MeshId = $"{rbxAsset}/maps/{mapName}/{meshName}",
                         Name = material.ToLowerInvariant(),
                         PhysicalConfigData = physics,
                         InitialSize = size,
@@ -737,7 +729,9 @@ namespace Source2Roblox.Geometry
                         Size = size,
                         CFrame = cf,
                     };
-                    
+
+                    assetManager.BindAssetId($"maps/{mapName}/{meshName}", uploadPool, meshPart, "MeshId");
+
                     if (materialSets.TryGetValue(material, out var vmt))
                     {
                         string diffuse = vmt.DiffusePath;
@@ -820,25 +814,9 @@ namespace Source2Roblox.Geometry
             {
                 string rbxModel = modelName.Replace(".mdl", ".rbxm");
                 string modelPath = Path.Combine(sourceDir, rbxModel);
-                Model model = null;
 
-                if (!File.Exists(modelPath))
-                {
-                    Console.WriteLine($"Loading model: {modelName}");
-                    var modelFile = new ModelFile(modelName, game);
-
-                    Console.WriteLine("\tBuilding model...");
-                    model = BakeMDL_RBXM(modelFile);
-                }
-                else
-                {
-                    var file = RobloxFile.Open(modelPath);
-                    model = file.FindFirstChildOfClass<Model>();
-                    Console.WriteLine($"Loading pre-built model: {rbxModel}");
-                }
-
-                Debug.Assert(model != null, $"Error fetching model: {modelName}!");
-                models[modelName] = model;
+                var modelFile = new ModelFile(modelName, game);
+                models[modelName] = BakeMDL_RBXM(modelFile);
             }
 
             foreach (var prop in staticProps)

@@ -22,7 +22,7 @@ namespace Source2Roblox.Geometry
         public readonly Dictionary<string, ValveMaterial> Materials = new Dictionary<string, ValveMaterial>();
         public readonly List<HashSet<Face>> FaceClusters = new List<HashSet<Face>>();
 
-        public readonly List<StaticProp> StaticProps = new List<StaticProp>();
+        public readonly StaticProps StaticProps = null;
         public readonly DetailProps DetailProps = null;
 
         public readonly ObjMesh Mesh = new ObjMesh(1f / Program.STUDS_TO_VMF);
@@ -196,8 +196,11 @@ namespace Source2Roblox.Geometry
             int numNorms = 0;
             int numUVs = 0;
 
-            foreach (var face in bsp.Faces)
+            for (int i = 0; i < bsp.Faces.Count; i++)
             {
+                var face = bsp.Faces[i];
+                face.FaceIndex = i;
+
                 var numEdges = face.NumEdges;
                 face.FirstNorm = numNorms;
 
@@ -352,7 +355,8 @@ namespace Source2Roblox.Geometry
 
             var facesLeft = faces
                 .Where(face => !face.Skip)
-                .ToHashSet();
+                .OrderBy(face => face.FaceIndex)
+                .ToList();
 
             int faceTotal = facesLeft.Count,
                 faceCount = 0;
@@ -367,13 +371,14 @@ namespace Source2Roblox.Geometry
                 var area = face.Area;
                 var sqrtArea = Math.Sqrt(area);
 
-                var searchArea = (int)Math.Max(500, sqrtArea * 5);
+                var searchArea = (int)Math.Max(20000, sqrtArea * 5);
                 var cluster = new HashSet<Face>() { face };
 
                 var nearby = faceOctree
                     .RadiusSearch(face.Center, searchArea)
                     .Where(other => other.Material == face.Material)
-                    .Where(facesLeft.Contains);
+                    .Where(facesLeft.Contains)
+                    .OrderBy(other => other.FaceIndex);
 
                 foreach (var other in nearby)
                 {
@@ -394,29 +399,8 @@ namespace Source2Roblox.Geometry
                 using (var propStream = new MemoryStream(staticProps.Content))
                 using (var reader = new BinaryReader(propStream))
                 {
-                    int numStrings = reader.ReadInt32();
-                    var strings = new string[numStrings];
-
-                    for (int i = 0; i < numStrings; i++)
-                        strings[i] = reader.ReadString(128);
-
-                    int numLeaves = reader.ReadInt32();
-                    var leaves = new ushort[numLeaves];
-
-                    for (int i = 0; i < numLeaves; i++)
-                        leaves[i] = reader.ReadUInt16();
-
-                    var numProps = reader.ReadInt32();
-                    var props = new StaticProp[numProps];
-
-                    for (int i = 0; i < numProps; i++)
-                    {
-                        var prop = new StaticProp(bsp, staticProps, reader);
-                        prop.Name = strings[prop.PropType];
-                        props[i] = prop;
-                    }
-
-                    StaticProps = props.ToList();
+                    var props = new StaticProps(bsp, staticProps, reader);
+                    StaticProps = props;
                 }
             }
             

@@ -3,9 +3,8 @@ using System.Diagnostics;
 using System.IO;
 
 using RobloxFiles.DataTypes;
-using Source2Roblox.Models;
 
-namespace Source2Roblox.Geometry
+namespace Source2Roblox.Models
 {
     [Flags]
     public enum StripFlags : byte

@@ -5,7 +5,9 @@ namespace Source2Roblox.World.Types
 {
     public class Face
     {
+        public int FaceIndex;
         public ushort PlaneNum;
+
         public byte Side;
         public bool OnNode;
 

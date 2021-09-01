@@ -83,9 +83,8 @@ namespace Source2Roblox.Geometry.MeshTypes
 
         public PhysicsMesh(RobloxMesh mesh)
         {
-            // This is an awful hack
-            // but it'll work for now.
-            var indices = new int[6] { 0, 1, 2, 2, 1, 0 };
+            // This is an awful hack but it'll work for now.
+            var indices = new int[6] { 0, 2, 4, 5, 3, 1 };
 
             foreach (var face in mesh.Faces)
             {
@@ -96,7 +95,12 @@ namespace Source2Roblox.Geometry.MeshTypes
                 {
                     int index = face[i];
                     var vert = mesh.Verts[index];
-                    subMesh.Vertices.Add(vert.Position);
+
+                    var pos = vert.Position;
+                    subMesh.Vertices.Add(pos);
+
+                    var norm = vert.Normal;
+                    subMesh.Vertices.Add(pos + (norm / 20f));
                 }
 
                 SubMeshes.Add(subMesh);

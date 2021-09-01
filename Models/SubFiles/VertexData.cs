@@ -4,11 +4,11 @@ using System.IO;
 using System.Linq;
 
 using Source2Roblox.FileSystem;
-using Source2Roblox.Models;
+using Source2Roblox.Geometry;
 
 using RobloxFiles.DataTypes;
 
-namespace Source2Roblox.Geometry
+namespace Source2Roblox.Models
 {
     public class VertexFixup
     {

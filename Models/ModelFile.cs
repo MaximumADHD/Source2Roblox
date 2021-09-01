@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 
 using Source2Roblox.FileSystem;
-using Source2Roblox.Geometry;
 
 namespace Source2Roblox.Models
 {
@@ -31,6 +30,7 @@ namespace Source2Roblox.Models
         public readonly string Location;
         public readonly ModelHeader Header;
         public readonly VertexData VertexData;
+        public readonly PhysicsData PhysicsData;
         public readonly TriangleData TriangleData;
         public readonly IReadOnlyList<string> Materials;
 
@@ -52,6 +52,7 @@ namespace Source2Roblox.Models
                 path += ".mdl";
 
             string vvdPath = path.Replace(".mdl", ".vvd");
+            string phyPath = path.Replace(".mdl", ".phy");
             string vtxPath = path.Replace(".mdl", ".dx90.vtx");
 
             var mdlStream = GameMount.OpenRead(path, game);
@@ -63,6 +64,16 @@ namespace Source2Roblox.Models
             var mdl = new ModelHeader(mdlReader);
             var vtx = new TriangleData(mdl, vtxReader);
             var vvd = new VertexData(mdl, vvdPath, game);
+
+            if (GameMount.HasFile(phyPath, game))
+            {
+                using (var phyStream = GameMount.OpenRead(phyPath, game))
+                using (var phyReader = new BinaryReader(phyStream))
+                {
+                    var phy = new PhysicsData(phyReader);
+                    PhysicsData = phy;
+                }
+            }
 
             int numTextures = mdl.TextureCount;
             var textureIndex = mdl.TextureIndex;

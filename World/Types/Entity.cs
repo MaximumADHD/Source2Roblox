@@ -112,7 +112,7 @@ namespace Source2Roblox.World.Types
             }
 
             object result = ReadField(key, value);
-            Fields.Add(key.ToLowerInvariant(), result);
+            Fields[key.ToLowerInvariant()] = result;
         }
 
         public IEnumerable<Event> GetEvents(string name)

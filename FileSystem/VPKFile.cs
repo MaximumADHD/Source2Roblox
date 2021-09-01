@@ -11,6 +11,7 @@ namespace Source2Roblox.FileSystem
     {
         public readonly FileInfo BasePath;
         public readonly VPKDirectory Root;
+        public readonly bool Mounted = false;
 
         private Dictionary<string, byte[]> binaries;
         private Dictionary<int, FileStream> buckets;
@@ -26,12 +27,27 @@ namespace Source2Roblox.FileSystem
             string dir = $"{basePath}_dir.vpk";
             BasePath = new FileInfo(basePath);
 
-            using (var stream = File.OpenRead(dir))
-            using (var reader = new BinaryReader(stream))
-                Root = new VPKDirectory(reader);
+            if (File.Exists(dir))
+            {
+                using (var stream = File.OpenRead(dir))
+                using (var reader = new BinaryReader(stream))
+                    Root = new VPKDirectory(reader);
+
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"\tMounted!");
+
+                Mounted = true;
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"\tCould not find file!");
+            }
 
             buckets = new Dictionary<int, FileStream>();
             binaries = new Dictionary<string, byte[]>();
+
+            Console.ForegroundColor = ConsoleColor.Gray;
         }
 
         public bool HasFile(string path)
@@ -58,6 +74,9 @@ namespace Source2Roblox.FileSystem
 
                 string basePath = BasePath.FullName;
                 int bucketId = entry.Index;
+
+                if (bucketId == 0x7FFF)
+                    return new MemoryStream();
 
                 if (!buckets.TryGetValue(bucketId, out FileStream bucket) || !bucket.CanRead)
                 {

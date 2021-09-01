@@ -77,20 +77,19 @@
     <Compile Include="Geometry\MeshTypes\RobloxMesh.cs" />
     <Compile Include="Geometry\WorldGeometry.cs" />
     <Compile Include="Models\Constants.cs" />
-    <Compile Include="Geometry\TriangleData.cs" />
-    <Compile Include="Geometry\VertexData.cs" />
+    <Compile Include="Models\SubFiles\PhysicsData.cs" />
+    <Compile Include="Models\SubFiles\TriangleData.cs" />
+    <Compile Include="Models\SubFiles\VertexData.cs" />
     <Compile Include="Octree\OctreeNode.cs" />
     <Compile Include="Octree\OctreeRegion.cs" />
-    <Compile Include="Upload\AssetManager.cs" />
+    <Compile Include="Util\AssetManager.cs" />
     <Compile Include="Util\Formatting.cs" />
     <Compile Include="Octree\Octree.cs" />
-    <Compile Include="Upload\RobloxWebClient.cs">
-      <SubType>Component</SubType>
-    </Compile>
     <Compile Include="Textures\ValveMaterial.cs" />
     <Compile Include="World\Types\Ambient.cs" />
     <Compile Include="World\Types\Game.cs" />
-    <Compile Include="World\Types\Props.cs" />
+    <Compile Include="World\Types\Props\DetailProps.cs" />
+    <Compile Include="World\Types\Props\StaticProps.cs" />
     <Compile Include="World\Winding.cs" />
     <Compile Include="World\BSPFile.cs" />
     <Compile Include="Util\ColorRGBExp32.cs" />
@@ -144,6 +143,11 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Forms\Uploader.resx">
+      <DependentUpon>Uploader.cs</DependentUpon>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

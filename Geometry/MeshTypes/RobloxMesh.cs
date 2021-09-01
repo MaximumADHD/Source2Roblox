@@ -9,6 +9,8 @@ using System.Text.RegularExpressions;
 using RobloxFiles;
 using RobloxFiles.DataTypes;
 
+using Source2Roblox.Models;
+
 namespace Source2Roblox.Geometry
 {
     public class RobloxVertex
