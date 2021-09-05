@@ -82,8 +82,8 @@ namespace Source2Roblox.Models
 
         public PhysicsData(BinaryReader reader)
         {
-            var stream = reader.BaseStream;
-            var fileStart = stream.Position;
+            // var stream = reader.BaseStream;
+            // var fileStart = stream.Position;
 
             Size = reader.ReadInt32();
             Id = reader.ReadInt32();

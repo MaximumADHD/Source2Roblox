@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -264,21 +265,22 @@ namespace Source2Roblox.Geometry
                 }
             }
 
+            var nameIndices = new Dictionary<Bone, int>();
+            var parentIds = new Dictionary<Bone, ushort>();
+
             if (mesh.HasSkinning)
             {
                 // Read Bones
                 for (int i = 0; i < mesh.NumBones; i++)
                 {
                     float[] cf = new float[12];
-                    int nameIndex = reader.ReadInt32();
-
-                    short _ = reader.ReadInt16(),
-                          parent = reader.ReadInt16();
 
                     var bone = new Bone();
-                    bone.SetAttribute<float>("ParentId", parent);
-                    bone.SetAttribute<float>("NameIndex", nameIndex);
+                    nameIndices[bone] = reader.ReadInt32();
 
+                    reader.Skip(2);
+                    parentIds[bone] = reader.ReadUInt16();
+                    
                     for (int m = 0; m < 12; m++)
                     {
                         int index = (m + 3) % 12;
@@ -296,19 +298,8 @@ namespace Source2Roblox.Geometry
 
                 foreach (Bone bone in mesh.Bones)
                 {
-                    int index;
-                    int parentId;
-
-                    if (bone.GetAttribute("NameIndex", out float fIndex))
-                        index = (int)fIndex;
-                    else
-                        continue;
-
-                    if (bone.GetAttribute("ParentId", out float fParent))
-                        parentId = (int)fParent;
-                    else
-                        continue;
-
+                    int index = nameIndices[bone];
+                    int parentId = parentIds[bone];
                     var buffer = new List<byte>();
 
                     while (true)
@@ -398,20 +389,22 @@ namespace Source2Roblox.Geometry
 
         public void Save(Stream stream)
         {
-            const ushort HeaderSize = 16;
+            ushort HeaderSize = 12;
+            Version = 2;
+
             const byte VertSize = 40;
             const byte FaceSize = 12;
-            const ushort LOD_Size = 4;
+            const ushort LODSize = 4;
 
-            byte[] VersionHeader = Encoding.UTF8.GetBytes("version 3.00\n");
+            if (NumLODs > 0)
+            {
+                Version = 3;
+                HeaderSize = 16;
+            }
+
+            byte[] VersionHeader = Encoding.UTF8.GetBytes($"version {Version}.00\n");
             stream.SetLength(0);
             stream.Position = 0;
-
-            if (NumLODs == 0)
-            {
-                NumLODs = 2;
-                LODs = new List<int> { 0, NumFaces };
-            }
 
             using (BinaryWriter writer = new BinaryWriter(stream))
             {
@@ -420,9 +413,13 @@ namespace Source2Roblox.Geometry
 
                 writer.Write(VertSize);
                 writer.Write(FaceSize);
-                writer.Write(LOD_Size);
 
-                writer.Write(NumLODs);
+                if (NumLODs > 0)
+                {
+                    writer.Write(LODSize);
+                    writer.Write(NumLODs);
+                }
+
                 writer.Write(NumVerts);
                 writer.Write(NumFaces);
 
@@ -435,7 +432,7 @@ namespace Source2Roblox.Geometry
                     writer.Write(pos.Y);
                     writer.Write(pos.Z);
 
-                    Vector3 norm = vertex.Normal;
+                    Vector3 norm = vertex.Normal.Unit;
                     writer.Write(norm.X);
                     writer.Write(norm.Y);
                     writer.Write(norm.Z);
@@ -589,6 +586,54 @@ namespace Source2Roblox.Geometry
             }
 
             return mesh;
+        }
+
+        public static void DiffMeshes(string meshDir)
+        {
+            string pathToMeshA = Path.Combine(meshDir, "MeshA.mesh");
+            string pathToMeshB = Path.Combine(meshDir, "MeshB.mesh");
+
+            if (!File.Exists(pathToMeshA))
+            {
+                Console.WriteLine($"Could not find MeshA: {pathToMeshA}");
+                return;
+            }
+
+            if (!File.Exists(pathToMeshB))
+            {
+                Console.WriteLine($"Could not find MeshB: {pathToMeshB}");
+                return;
+            }
+
+            var meshA = FromFile(pathToMeshA);
+            var meshB = FromFile(pathToMeshB);
+
+            for (int i = 0; i < meshA.NumVerts; i++)
+            {
+                var vertA = meshA.Verts[i];
+                var vertB = meshB.Verts[i];
+
+                int indexInNew = 0;
+
+                for (int j = 0; j < meshB.NumVerts; j++)
+                {
+                    var otherVert = meshB.Verts[j];
+
+                    if ((otherVert.Position - vertA.Position).Magnitude < 0.1)
+                    {
+                        indexInNew = j;
+                        break;
+                    }
+                }
+
+                Console.WriteLine($"[{i}] = [{indexInNew}]");
+                
+                Console.WriteLine("POSITION [{0}] {1,50} {2,50}",   i, vertA.Position, vertB.Position);
+                Console.WriteLine("NORMAL   [{0}] {1,50} {2,50}",   i, vertA.Normal.Unit, vertB.Normal.Unit);
+                Console.WriteLine("UV       [{0}] {1,50} {2,50}\n", i, vertA.UV, vertB.UV);
+            }
+
+            Debugger.Break();
         }
 
         public static RobloxMesh FromBuffer(byte[] data)

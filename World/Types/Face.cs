@@ -40,7 +40,7 @@ namespace Source2Roblox.World.Types
         public bool Skip;
         public Leaf Leaf;
 
-        public int EntityId = -1;
+        public Entity Entity;
         public Vector3 Center = new Vector3();
 
         public override string ToString()

@@ -157,6 +157,8 @@ namespace Source2Roblox.World.Types
             }
 
             Props = props.ToList();
+            Strings = strings;
+            Leaves = leaves;
         }
 
         public IEnumerator<StaticProp> GetEnumerator()

@@ -18,10 +18,13 @@ namespace Source2Roblox.Textures
 
         private readonly GameMount Game;
         public string DiffusePath;
+        public string DetailPath;
         public string BumpPath;
         public string IrisPath;
+
         public bool NoAlpha = true;
-        public bool SelfIllum = true;
+        public bool Additive = false;
+        public bool SelfIllum = false;
         public Material Material = Material.Plastic;
 
         public Image SaveVTF(string path, string rootDir, bool? noAlpha = null)
@@ -33,7 +36,6 @@ namespace Source2Roblox.Textures
 
             string fileName = info.Name;
             string matDir = path.Replace(fileName, "");
-
             rootDir = Path.Combine(rootDir, matDir);
 
             if (!Directory.Exists(rootDir))
@@ -102,6 +104,22 @@ namespace Source2Roblox.Textures
                     DiffusePath = $"materials/{value}.vtf";
                     break;
                 }
+                case "$detail":
+                {
+                    DetailPath = $"materials/{value}.vtf";
+                    break;
+                }
+                case "$detailblendmode":
+                {
+                    if (value == "4")
+                    {
+                        var temp = DetailPath;
+                        DetailPath = DiffusePath;
+                        DiffusePath = temp;
+                    }
+
+                    break;
+                }
                 case "$bumpmap":
                 {
                     BumpPath = $"materials/{value}.vtf";
@@ -116,6 +134,11 @@ namespace Source2Roblox.Textures
                 case "$translucent":
                 {
                     NoAlpha = (value != "1");
+                    break;
+                }
+                case "$additive":
+                {
+                    Additive = (value == "1");
                     break;
                 }
                 case "$iris":

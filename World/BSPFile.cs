@@ -278,9 +278,10 @@ namespace Source2Roblox.World
             return Entities.Find(ent => ent.ClassName == className);
         }
 
-        public IEnumerable<Entity> FindEntitiesOfClass(string className)
+        public IEnumerable<Entity> FindEntitiesOfClass(params string[] classNames)
         {
-            return Entities.Where(ent => ent.ClassName == className);
+            var classes = classNames.ToHashSet();
+            return Entities.Where(ent => classes.Contains(ent.ClassName));
         }
 
         public Entity FindEntityByName(string name)

@@ -149,15 +149,18 @@ namespace Source2Roblox.World.Types
 
         public int? GetInt(string key)
         {
-            object f = Get<object>(key);
+            float? f = TryGet<float>(key);
 
-            return (int?)f;
+            if (f != null)
+                return (int)f.Value;
+
+            return null;
         }
-
+        
         public static CFrame GetCFrame(Vector3 origin, Vector3 angles)
         {
             const float deg2Rad = (float)Math.PI / 180f;
-            const float halfPi = (float)Math.PI / 2f;
+            const float halfPi = deg2Rad * 90f;
 
             origin /= Program.STUDS_TO_VMF;
             angles *= deg2Rad;
@@ -165,9 +168,24 @@ namespace Source2Roblox.World.Types
             var cf = new CFrame(origin.X, origin.Z, -origin.Y)
                    *     CFrame.Angles(0, -halfPi, 0)
                    *     CFrame.Angles(0, angles.Y, 0)
-                   *     CFrame.Angles(-angles.X, halfPi, -angles.Z);
+                   *     CFrame.Angles(-angles.X, 0, -angles.Z)
+                   *     CFrame.Angles(0, halfPi, 0);
 
             return cf;
+        }
+
+        public CFrame CFrame
+        {
+            get
+            {
+                var origin = Get<Vector3>("origin");
+                var angles = Get<Vector3>("angles");
+
+                if (origin == null || angles == null)
+                    return null;
+
+                return GetCFrame(origin, angles);
+            }
         }
 
         public static void ReadEntities(BinaryReader reader, List<Entity> entities)

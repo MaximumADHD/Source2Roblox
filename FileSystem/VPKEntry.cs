@@ -1,67 +1,32 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 
 namespace Source2Roblox.FileSystem
 {
-    public class VPKEntryChunk
+    public class VPKEntry
     {
-        public readonly ushort PackFileIndex;
-        public readonly uint ChunkOffset;
-        public readonly uint ChunkSize;
+        public readonly uint CRC = 0;
+        public readonly ushort Index = 0;
+        public readonly uint Offset = 0;
+        public readonly uint Size = 0;
 
-        public VPKEntryChunk(ushort index, uint offset, uint size)
-        {
-            PackFileIndex = index;
-            ChunkOffset = offset;
-            ChunkSize = size;
-        }
-    }
-
-    public struct VPKEntry
-    {
-        public readonly List<VPKEntryChunk> Chunks;
-
-        private VPKEntryChunk Chunk0
-        {
-            get
-            {
-                if (Chunks.Any())
-                    return Chunks.First();
-
-                return null;
-            }
-        }
-
-        public bool HasData => Chunks.Any();
-        public readonly uint CRC;
-
-        public ushort Index => Chunk0?.PackFileIndex ?? 0;
-        public uint Offset => Chunk0?.ChunkOffset ?? 0;
-        public uint Size => Chunk0?.ChunkSize ?? 0;
+        public readonly ushort PreloadBytes;
+        public readonly byte[] PreloadContent;
 
         public VPKEntry(BinaryReader reader)
         {
             CRC = reader.ReadUInt32();
-            
-            var skip = reader.ReadUInt16();
-            Chunks = new List<VPKEntryChunk>();
-            
-            while (true)
+
+            PreloadBytes = reader.ReadUInt16();
+            Index = reader.ReadUInt16();
+
+            if (Index != 0xFFFF)
             {
-                ushort index = reader.ReadUInt16();
-
-                if (index == 0xFFFF)
-                    break;
-
-                uint offset = reader.ReadUInt32();
-                uint size = reader.ReadUInt32();
-
-                var chunk = new VPKEntryChunk(index, offset, size);
-                Chunks.Add(chunk);
+                Offset = reader.ReadUInt32();
+                Size = reader.ReadUInt32();
             }
 
-            reader.Skip(skip);
+            PreloadContent = reader.ReadBytes(PreloadBytes);
+            reader.Skip(2);
         }
     }
 }

@@ -184,7 +184,7 @@ namespace Source2Roblox.Geometry
                         vertOffsets[vertId] = offset;
                     }
 
-                    face.EntityId = modelIndex;
+                    face.Entity = entity;
                 }
 
                 model.Origin = origin;
@@ -351,7 +351,7 @@ namespace Source2Roblox.Geometry
                 faceOctree.CreateNode(center, face);
             }
 
-            // Cluster nearby faces by material.
+            // Cluster nearby faces by material and entity.
 
             var facesLeft = faces
                 .Where(face => !face.Skip)
@@ -371,12 +371,13 @@ namespace Source2Roblox.Geometry
                 var area = face.Area;
                 var sqrtArea = Math.Sqrt(area);
 
-                var searchArea = (int)Math.Max(20000, sqrtArea * 5);
+                var searchArea = (int)Math.Max(4000, sqrtArea * 5);
                 var cluster = new HashSet<Face>() { face };
 
                 var nearby = faceOctree
                     .RadiusSearch(face.Center, searchArea)
                     .Where(other => other.Material == face.Material)
+                    .Where(other => other.Entity == face.Entity)
                     .Where(facesLeft.Contains)
                     .OrderBy(other => other.FaceIndex);
 

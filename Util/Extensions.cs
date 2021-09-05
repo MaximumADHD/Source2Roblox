@@ -96,33 +96,31 @@ public static class Extensions
         return new Vector3int16(x, y, z);
     }
 
+    public static string ReadStringFast(this BinaryReader reader)
+    {
+        string result = "";
+        char ch;
+
+        while ((ch = reader.ReadChar()) != '\0')
+            result += ch;
+
+        return result;
+    }
+
     public static string ReadString(this BinaryReader reader, int? length, Encoding encoding = null)
     {
-        var stream = reader.BaseStream;
-        long len = length ?? -1;
-        
-        if (len <= 0)
-        {
-            var start = stream.Position;
+        if (length == null)
+            return ReadStringFast(reader);
 
-            while (reader.PeekChar() > 0)
-                stream.Position++;
+        byte[] buffer = reader.ReadBytes(length.Value);
 
-            len = stream.Position - start + 1;
-            stream.Position = start;
-        }
-
-        byte[] buffer = reader.ReadBytes((int)len);
-
-        if (encoding == null)
-            encoding = Encoding.UTF8;
-
-        string result = encoding
+        string result = (encoding ?? Encoding.UTF8)
             .GetString(buffer)
             .TrimEnd('\0');
 
         return result;
     }
+
 
     public static RegistryKey GetSubKey(this RegistryKey key, params string[] path)
     {
@@ -193,26 +191,6 @@ public static class Extensions
         var max = new Vector3(max_X, max_Y, max_Z);
 
         return new Region3(min, max);
-    }
-
-    public static void SetPrimaryPartCFrame(this Model model, CFrame cf)
-    {
-        var primary = model.PrimaryPart;
-
-        if (primary == null)
-            throw new Exception("Model:SetPrimaryPartCFrame() failed because no PrimaryPart has been set, or the PrimaryPart no longer exists. Please set Model.PrimaryPart before using this.");
-
-        var reference = primary.CFrame;
-        primary.CFrame = cf;
-
-        foreach (var part in model.GetDescendantsOfType<BasePart>())
-        {
-            if (part != primary)
-            {
-                var offset = reference.ToObjectSpace(part.CFrame);
-                part.CFrame = cf * offset;
-            }
-        }
     }
 
     public static void PivotTo(this PVInstance pv, CFrame cf)

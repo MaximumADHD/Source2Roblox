@@ -471,7 +471,7 @@ namespace Source2Roblox.Models
             vtxReader.Dispose();
         }
 
-        public List<MeshBuffer> GetMeshes(int bodyPartId = 0, int modelId = 0, int lodId = 0, int skinId = 0)
+        public List<MeshBuffer> GetMeshes(int bodyPartId = 0, int skinId = 0, int modelId = 0, int lodId = 0)
         {
             StudioBodyPart bodyPart = TriangleData.BodyParts[bodyPartId];
             StudioModel model = bodyPart.Models[modelId];
@@ -486,7 +486,12 @@ namespace Source2Roblox.Models
             foreach (var mesh in meshes)
             {
                 var meshData = new MeshVertexData(mesh, modelData);
-                var matPath = mesh.Materials[skinId];
+                string matPath;
+
+                if (skinId >= mesh.Materials.Length)
+                    matPath = mesh.Materials.First();
+                else
+                    matPath = mesh.Materials[skinId];
 
                 var meshBuffer = new MeshBuffer()
                 {
