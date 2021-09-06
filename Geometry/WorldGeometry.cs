@@ -287,8 +287,21 @@ namespace Source2Roblox.Geometry
                     }
 
                     var dispSize = (1 << disp.Power) + 1;
+                    var faceNormal = new Vector3();
+
+                    for (int i = 0; i < numEdges; i++)
+                    {
+                        var normIndex = (int)normIndices[firstNorm + i];
+                        var norm = bsp.VertNormals[normIndex];
+
+                        norm = new Vector3(norm.X, norm.Z, -norm.Y);
+                        faceNormal += norm;
+                    }
+
+                    faceNormal = faceNormal.Unit;
                     numEdges = (dispSize * dispSize);
 
+                    // Generate Vertices and UVs.
                     for (int y = 0; y < dispSize; y++)
                     {
                         var rowSample = (float)y / (dispSize - 1);
@@ -302,17 +315,75 @@ namespace Source2Roblox.Geometry
 
                             var pos = rowStart.Lerp(rowEnd, colSample);
                             var uv = texel.CalcTexCoord(pos, size);
-                            var norm = new Vector3(0, 0, -1); // TODO
 
                             var dispVert = bsp.DispVerts[i];
                             pos += dispVert.Vector * dispVert.Dist;
                             center += (pos / numEdges);
 
-                            Mesh.AddNormal(norm.X, norm.Z, -norm.Y);
                             Mesh.AddVertex(pos.X, pos.Z, -pos.Y);
                             Mesh.AddUV(uv.X, 1f - uv.Y);
                         }
                     }
+
+                    // Generate Normals.
+                    var normalSamples = new Dictionary<int, Vector3>();
+                    var meshVerts = Mesh.Vertices;
+
+                    var preSample = new Action<int>((index) =>
+                    {
+                        if (!normalSamples.TryGetValue(index, out var sampler))
+                        {
+                            sampler = new Vector3();
+                            normalSamples[index] = sampler;
+                        }
+                    });
+
+                    for (int y = 0; y < dispSize - 1; y++)
+                    {
+                        for (int x = 0; x < dispSize - 1; x++)
+                        {
+                            int aa = numVerts + (y * dispSize) + x;
+                            preSample(aa);
+
+                            int ab = aa + 1;
+                            preSample(ab);
+
+                            int bb = ab + dispSize;
+                            preSample(bb);
+
+                            int ba = bb - 1;
+                            preSample(ba);
+
+                            Vector3 a = meshVerts[aa],
+                                    b = meshVerts[ab],
+                                    c = meshVerts[ba],
+                                    d = meshVerts[bb];
+
+                            var normA = (a - c).Cross(d - c).Unit;
+                            var normB = (a - d).Cross(b - d).Unit;
+
+                            var dotA = faceNormal.Dot(normA);
+                            var dotB = faceNormal.Dot(normB);
+
+                            if (dotA < 0)
+                                normA = -normA;
+
+                            if (dotB < 0)
+                                normB = -normB;
+
+                            normalSamples[aa] += normA;
+                            normalSamples[ba] += normA;
+                            normalSamples[bb] += normA;
+
+                            normalSamples[aa] += normB;
+                            normalSamples[bb] += normB;
+                            normalSamples[ab] += normB;
+                        }
+                    }
+
+                    for (int i = 0; i < numEdges; i++)
+                        if (normalSamples.TryGetValue(numVerts + i, out var samples))
+                            Mesh.AddNormal(samples.Unit);
 
                     Mesh.SetObject($"disp_{face.DispInfo}");
                     face.NumEdges = (short)numEdges;

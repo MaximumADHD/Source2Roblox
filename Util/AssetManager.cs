@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -12,7 +11,6 @@ using Source2Roblox.Forms;
 
 using Microsoft.Win32;
 using System.Threading;
-using System.Security.Cryptography;
 using RobloxFiles.DataTypes;
 
 namespace Source2Roblox.Upload

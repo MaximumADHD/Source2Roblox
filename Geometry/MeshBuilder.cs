@@ -455,10 +455,10 @@ namespace Source2Roblox.Geometry
                                 int bb = ab + dispSize;
                                 int ba = bb - 1;
 
-                                objMesh.AddIndex(aa, aa, aa);
-                                objMesh.AddIndex(ab, ab, ab);
-                                objMesh.AddIndex(bb, bb, bb);
                                 objMesh.AddIndex(ba, ba, ba);
+                                objMesh.AddIndex(bb, bb, bb);
+                                objMesh.AddIndex(ab, ab, ab);
+                                objMesh.AddIndex(aa, aa, aa);
 
                                 objMesh.AddFace();
                             }
@@ -528,6 +528,9 @@ namespace Source2Roblox.Geometry
                 StreamingEnabled = true,
                 Parent = map
             };
+
+            var camera = new Camera() { Parent = workspace };
+            workspace.CurrentCamera = camera;
 
             var skyCamera = bsp.FindEntityByClass("sky_camera");
             var worldSpawn = bsp.FindEntityByClass("worldspawn");
@@ -684,10 +687,10 @@ namespace Source2Roblox.Geometry
                                     int bb = ab + dispSize;
                                     int ba = bb - 1;
 
-                                    var faceA = new int[3] { aa, ba, bb };
+                                    var faceA = new int[3] { bb, ba, aa };
                                     mesh.Faces.Add(faceA);
 
-                                    var faceB = new int[3] { aa, bb, ab };
+                                    var faceB = new int[3] { ab, bb, aa };
                                     mesh.Faces.Add(faceB);
                                 }
                             }
@@ -861,7 +864,7 @@ namespace Source2Roblox.Geometry
 
             foreach (var devShot in devShots)
             {
-                var camera = new RenderingTest()
+                var renderTest = new RenderingTest()
                 {
                     CFrame = devShot.CFrame,
                     Name = devShot.Name,
@@ -873,7 +876,7 @@ namespace Source2Roblox.Geometry
                 if (fov == null)
                     continue;
 
-                camera.FieldOfView = fov.Value;
+                renderTest.FieldOfView = fov.Value;
             }
 
             var entityProps = bsp.FindEntitiesOfClass
