@@ -9,6 +9,7 @@ using Source2Roblox.World.Types;
 using RobloxFiles.DataTypes;
 using System.Linq;
 using System.Diagnostics;
+using System.IO.Compression;
 
 namespace Source2Roblox.World
 {
@@ -20,6 +21,7 @@ namespace Source2Roblox.World
         public readonly int Version;
         public readonly int MapRevision;
 
+        public readonly GameMount Game = null;
         public readonly Lump[] Lumps = new Lump[64];
 
         public readonly List<Face> Faces = new List<Face>();
@@ -218,6 +220,12 @@ namespace Source2Roblox.World
 
                         break;
                     }
+                    case LumpType.PakFile:
+                    {
+                        var pakFile = new PakFile(reader);
+                        //GameMount.BindZipArchive(Name, archive, Game);
+                        break;
+                    }
                     case LumpType.TexDataStringData:
                     {
                         int start = 0;
@@ -255,6 +263,7 @@ namespace Source2Roblox.World
         {
             var info = new FileInfo(path);
             Name = info.Name.Replace(info.Extension, "");
+            Game = game;
 
             using (var stream = GameMount.OpenRead(path, game))
             using (var reader = new BinaryReader(stream))

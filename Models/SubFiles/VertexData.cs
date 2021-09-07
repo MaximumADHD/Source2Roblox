@@ -18,43 +18,6 @@ namespace Source2Roblox.Models
         public int CopyDst;
     }
 
-    public class Tangent
-    {
-        public readonly float X;
-        public readonly float Y;
-        public readonly float Z;
-        public readonly float W;
-
-        public override string ToString()
-        {
-            return $"{X}, {Y}, {Z}, {W}";
-        }
-
-        public Tangent(float x, float y, float z, float w)
-        {
-            X = x;
-            Y = y;
-            Z = z;
-            W = w;
-        }
-
-        public Tangent(Vector3 pos, float w)
-        {
-            X = pos.X;
-            Y = pos.Y;
-            Z = pos.Z;
-            W = w;
-        }
-
-        public Tangent(BinaryReader reader)
-        {
-            X = reader.ReadSingle();
-            Y = reader.ReadSingle();
-            Z = reader.ReadSingle();
-            W = reader.ReadSingle();
-        }
-    }
-
     public class StudioVertex
     {
         public float[] Weights;
@@ -101,7 +64,7 @@ namespace Source2Roblox.Models
             var newNorm = new Vector3(oldNorm.X, oldNorm.Z, -oldNorm.Y);
 
             var oldUV = vertex.UV;
-            var newUV = new Vector3(oldUV.X, oldUV.Y);
+            var newUV = new Vector2(oldUV.X, oldUV.Y);
 
             return new RobloxVertex()
             {

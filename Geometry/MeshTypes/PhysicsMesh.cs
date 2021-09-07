@@ -100,7 +100,7 @@ namespace Source2Roblox.Geometry.MeshTypes
                     subMesh.Vertices.Add(pos);
 
                     var norm = vert.Normal;
-                    subMesh.Vertices.Add(pos + (norm / 100f));
+                    subMesh.Vertices.Add(pos + (norm / 8f));
                 }
 
                 SubMeshes.Add(subMesh);

@@ -1,25 +1,24 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 
 namespace Source2Roblox.FileSystem
 {
-    public class VPKFile : IEnumerable<VPKEntry>, IDisposable
+    public class VPKFile : IDisposable
     {
         public readonly FileInfo BasePath;
         public readonly VPKDirectory Root;
         public readonly bool Mounted = false;
 
-        private Dictionary<string, byte[]> binaries;
-        private Dictionary<int, FileStream> buckets;
+        private Dictionary<string, byte[]> Binaries = new Dictionary<string, byte[]>();
+        private Dictionary<int, FileStream> Buckets = new Dictionary<int, FileStream>();
 
-        private bool disposed;
-        
-        public IReadOnlyDictionary<string, VPKEntry> Entries => Root.Entries;
-        public IEnumerable<string> Files => Entries.Keys.AsEnumerable();
+        private bool Disposed;
         public override string ToString() => BasePath.Name;
 
         public VPKFile(string basePath)
@@ -44,45 +43,49 @@ namespace Source2Roblox.FileSystem
                 Console.WriteLine($"\tCould not find file!");
             }
 
-            buckets = new Dictionary<int, FileStream>();
-            binaries = new Dictionary<string, byte[]>();
-
             Console.ForegroundColor = ConsoleColor.Gray;
+        }
+        
+        public VPKFile(ZipArchive archive)
+        {
+            Root = new VPKDirectory(archive);
         }
 
         public bool HasFile(string path)
         {
             path = Program.CleanPath(path);
 
-            if (binaries.Keys.Contains(path))
+            if (Binaries.Keys.Contains(path))
                 return true;
 
-            if (Root.Entries.Keys.Contains(path))
-                return true;
-
-            return false;
+            var entry = Root.FindEntry(path);
+            return (entry != null);
         }
 
         public MemoryStream OpenRead(string path)
         {
             path = Program.CleanPath(path);
 
-            if (!binaries.TryGetValue(path, out byte[] buffer))
+            if (!Binaries.TryGetValue(path, out byte[] buffer))
             {
-                if (!Root.Entries.TryGetValue(path, out VPKEntry entry))
+                var entry = Root.FindEntry(path);
+
+                if (entry == null)
                     throw new FileNotFoundException("File not found in VPK:", path);
 
-                string basePath = BasePath.FullName;
                 int bucketId = entry.Index;
 
                 if (bucketId == 0x7FFF)
-                    return new MemoryStream();
-
-                if (!buckets.TryGetValue(bucketId, out FileStream bucket) || !bucket.CanRead)
                 {
-                    string bucketPath = basePath + string.Format("_{0,3:D3}.vpk", bucketId);
+                    var embed = entry.EmbeddedContent ?? Array.Empty<byte>();
+                    return new MemoryStream(embed);
+                }
+
+                if (!Buckets.TryGetValue(bucketId, out FileStream bucket) || !bucket.CanRead)
+                {
+                    string bucketPath = BasePath.FullName + string.Format("_{0,3:D3}.vpk", bucketId);
                     bucket = File.OpenRead(bucketPath);
-                    buckets[bucketId] = bucket;
+                    Buckets[bucketId] = bucket;
                 }
 
                 lock (bucket)
@@ -92,41 +95,31 @@ namespace Source2Roblox.FileSystem
                     using (var reader = new BinaryReader(bucket, Encoding.UTF8, true))
                         buffer = reader.ReadBytes((int)entry.Size);
 
-                    binaries[path] = buffer;
+                    Binaries[path] = buffer;
                 }
             }
 
             return new MemoryStream(buffer);
         }
 
-        public IEnumerator<VPKEntry> GetEnumerator()
-        {
-            return Entries.Values.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return Entries.Values.GetEnumerator();
-        }
-
         public void Dispose()
         {
-            if (!disposed)
+            if (!Disposed)
             {
-                foreach (int bucketId in buckets.Keys)
+                foreach (int bucketId in Buckets.Keys)
                 {
-                    var file = buckets[bucketId];
+                    var file = Buckets[bucketId];
                     file.Dispose();
                 }
 
-                buckets.Clear();
-                buckets = null;
+                Buckets.Clear();
+                Buckets = null;
 
-                binaries.Clear();
-                binaries = null;
+                Binaries.Clear();
+                Binaries = null;
             }
 
-            disposed = true;
+            Disposed = true;
         }
     }
 }

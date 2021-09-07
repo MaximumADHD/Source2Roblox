@@ -404,7 +404,7 @@ namespace Source2Roblox.Geometry
                             vert += vertOffsets[vertIndex];
 
                         center += vert / numEdges;
-                        Mesh.AddUV(uv.X, 1f - uv.Y);
+                        Mesh.AddUV(uv.X, uv.Y);
                         Mesh.AddVertex(vert.X, vert.Z, -vert.Y);
                         Mesh.AddNormal(norm.X, norm.Z, -norm.Y);
                     }

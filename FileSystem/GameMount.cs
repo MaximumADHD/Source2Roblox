@@ -1,19 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using ValveKeyValue;
 
 namespace Source2Roblox.FileSystem
 {
     public class GameMount
     {
-        private static readonly KVSerializer infoHelper = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
-
         public readonly string GameDir;
         public readonly string GameName;
 
         private readonly Dictionary<string, string> Routing;
         private readonly Dictionary<string, VPKFile> Mounts;
+
+        private static readonly KVSerializer GameInfoHelper = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
 
         public GameMount(string gameInfoPath)
         {
@@ -36,7 +37,7 @@ namespace Source2Roblox.FileSystem
             Console.WriteLine($"Loading game mount {gameInfoPath}...");
 
             using (var infoStream = File.OpenRead(gameInfoPath))
-                gameInfo = infoHelper.Deserialize(infoStream);
+                gameInfo = GameInfoHelper.Deserialize(infoStream);
 
             var fileSystem = gameInfo["FileSystem"];
             var vpkPaths = new List<string>();
@@ -95,6 +96,26 @@ namespace Source2Roblox.FileSystem
             }
 
             Console.WriteLine("Ready!");
+        }
+
+        public void BindZipArchive(string name, ZipArchive archive)
+        {
+            if (Mounts.ContainsKey(name))
+                throw new Exception($"Archive name '{name}' already in use!");
+            else
+                Console.WriteLine("Warming up PakFile, this may take a moment...");
+            
+            // Fetch a dummy entry to make the archive load.
+            archive.GetEntry("");
+
+            Console.WriteLine("PakFile mounted!");
+            Mounts[name] = new VPKFile(archive);
+        }
+
+        public static void BindZipArchive(string name, ZipArchive archive, GameMount game = null)
+        {
+            game = game ?? Program.GameMount;
+            game.BindZipArchive(name, archive);
         }
 
         private string GetRouting(string path)

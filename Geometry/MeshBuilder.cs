@@ -513,7 +513,7 @@ namespace Source2Roblox.Geometry
 
             var lighting = new Lighting()
             {
-                Technology = Technology.Future,
+                Technology = Technology.ShadowMap,
                 EnvironmentSpecularScale = 0.2f,
                 EnvironmentDiffuseScale = 0.5f,
                 OutdoorAmbient = new Color3(),
@@ -666,10 +666,10 @@ namespace Source2Roblox.Geometry
                             var vert = new RobloxVertex()
                             {
                                 Position = pos,
-                                Normal = norm
+                                Normal = norm,
+                                UV = uv
                             };
 
-                            vert.SetUV(uv);
                             mesh.Verts.Add(vert);
                         }
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -16,9 +17,11 @@ namespace Source2Roblox.Geometry
 {
     public class RobloxVertex
     {
-        public Vector3 Position;
-        public Vector3 Normal;
-        public Vector3 UV;
+        public Vector3 Position = new Vector3();
+        public Vector3 Normal = new Vector3(1, 0, 0);
+
+        public Vector2 UV = new Vector2();
+        public Tangent Tangent = new Tangent(0, 0, -1, 1);
 
         public Color? Color;
         public BoneWeights? Weights;
@@ -44,11 +47,6 @@ namespace Source2Roblox.Geometry
                 Normal = newNorm,
                 UV = newUV,
             };
-        }
-
-        public void SetUV(Vector2 uv)
-        {
-            UV = new Vector3(uv.X, 1f - uv.Y);
         }
     }
 
@@ -138,7 +136,7 @@ namespace Source2Roblox.Geometry
                 else if (target == 1)
                     vertex.Normal = new Vector3(coords);
                 else if (target == 2)
-                    vertex.UV = new Vector3(coords[0], 1 - coords[1], 0);
+                    vertex.UV = new Vector2(coords[0], 1 - coords[1]);
 
                 target = (target + 1) % 3;
 
@@ -212,7 +210,9 @@ namespace Source2Roblox.Geometry
                 {
                     Position = reader.ReadVector3(),
                     Normal = reader.ReadVector3(),
-                    UV = reader.ReadVector3()
+
+                    UV = reader.ReadVector2(),
+                    Tangent = reader.ReadUInt32()
                 };
 
                 Color? color = null;
@@ -432,16 +432,18 @@ namespace Source2Roblox.Geometry
                     writer.Write(pos.Y);
                     writer.Write(pos.Z);
 
-                    Vector3 norm = vertex.Normal.Unit;
+                    Vector3 norm = vertex.Normal;
                     writer.Write(norm.X);
                     writer.Write(norm.Y);
                     writer.Write(norm.Z);
 
-                    Vector3 uv = vertex.UV;
+                    Vector2 uv = vertex.UV;
                     writer.Write(uv.X);
                     writer.Write(uv.Y);
-                    writer.Write(uv.Z);
 
+                    Tangent tangent = vertex.Tangent;
+                    writer.Write(tangent.ToUInt32());
+                    
                     if (vertex.Color.HasValue)
                     {
                         var color = vertex.Color.Value;
@@ -486,7 +488,7 @@ namespace Source2Roblox.Geometry
                 Verts = new List<RobloxVertex>()
             };
 
-            var uvTable = new List<Vector3>();
+            var uvTable = new List<Vector2>();
             var posTable = new List<Vector3>();
             var normTable = new List<Vector3>();
             var vertexLookup = new Dictionary<string, int>();
@@ -518,29 +520,34 @@ namespace Source2Roblox.Geometry
                                 .Select(float.Parse)
                                 .ToArray();
 
-                            var value = new Vector3(input);
-                            List<Vector3> target = null;
+                            object value = null;
+                            IList target = null;
 
                             switch (action)
                             {
                                 case "v":
                                 {
+                                    value = new Vector3(input);
                                     target = posTable;
                                     break;
                                 }
                                 case "vn":
                                 {
+                                    value = new Vector3(input);
                                     target = normTable;
                                     break;
                                 }
                                 case "vt":
                                 {
+                                    value = new Vector2(input);
                                     target = uvTable;
                                     break;
                                 }
                             }
 
-                            target.Add(value);
+                            if (target != null)
+                                target.Add(value);
+
                             break;
                         }
                         case "f":
@@ -586,54 +593,6 @@ namespace Source2Roblox.Geometry
             }
 
             return mesh;
-        }
-
-        public static void DiffMeshes(string meshDir)
-        {
-            string pathToMeshA = Path.Combine(meshDir, "MeshA.mesh");
-            string pathToMeshB = Path.Combine(meshDir, "MeshB.mesh");
-
-            if (!File.Exists(pathToMeshA))
-            {
-                Console.WriteLine($"Could not find MeshA: {pathToMeshA}");
-                return;
-            }
-
-            if (!File.Exists(pathToMeshB))
-            {
-                Console.WriteLine($"Could not find MeshB: {pathToMeshB}");
-                return;
-            }
-
-            var meshA = FromFile(pathToMeshA);
-            var meshB = FromFile(pathToMeshB);
-
-            for (int i = 0; i < meshA.NumVerts; i++)
-            {
-                var vertA = meshA.Verts[i];
-                var vertB = meshB.Verts[i];
-
-                int indexInNew = 0;
-
-                for (int j = 0; j < meshB.NumVerts; j++)
-                {
-                    var otherVert = meshB.Verts[j];
-
-                    if ((otherVert.Position - vertA.Position).Magnitude < 0.1)
-                    {
-                        indexInNew = j;
-                        break;
-                    }
-                }
-
-                Console.WriteLine($"[{i}] = [{indexInNew}]");
-                
-                Console.WriteLine("POSITION [{0}] {1,50} {2,50}",   i, vertA.Position, vertB.Position);
-                Console.WriteLine("NORMAL   [{0}] {1,50} {2,50}",   i, vertA.Normal.Unit, vertB.Normal.Unit);
-                Console.WriteLine("UV       [{0}] {1,50} {2,50}\n", i, vertA.UV, vertB.UV);
-            }
-
-            Debugger.Break();
         }
 
         public static RobloxMesh FromBuffer(byte[] data)

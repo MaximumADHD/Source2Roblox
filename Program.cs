@@ -62,7 +62,6 @@ namespace Source2Roblox
                 argMap.Add(argKey, "");
             #endregion
 
-            string diffMeshDir = GetArg("-diffMeshes");
             string noPrompt = GetArg("-noPrompt");
             string upload   = GetArg("-upload");
 
@@ -71,9 +70,6 @@ namespace Source2Roblox
 
             string mapName = GetArg("-map");
             string vtfName = GetArg("-vtf");
-
-            if (diffMeshDir != null)
-                RobloxMesh.DiffMeshes(diffMeshDir);
 
             if (gameDir == null)
                 return;

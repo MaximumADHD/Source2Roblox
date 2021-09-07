@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.IO.Compression;
 
 namespace Source2Roblox.FileSystem
 {
@@ -9,8 +10,10 @@ namespace Source2Roblox.FileSystem
         public readonly uint Offset = 0;
         public readonly uint Size = 0;
 
-        public readonly ushort PreloadBytes;
-        public readonly byte[] PreloadContent;
+        public readonly int PreloadBytes;
+        public readonly ZipArchiveEntry ZipEntry;
+
+        private byte[] PreloadContent;
 
         public VPKEntry(BinaryReader reader)
         {
@@ -27,6 +30,35 @@ namespace Source2Roblox.FileSystem
 
             PreloadContent = reader.ReadBytes(PreloadBytes);
             reader.Skip(2);
+        }
+
+        public byte[] EmbeddedContent
+        {
+            get
+            {
+                if (Index != 0x7FFF)
+                    return null;
+
+                if (PreloadContent != null)
+                    return PreloadContent;
+
+                if (ZipEntry == null)
+                    return null;
+
+                using (var stream = ZipEntry.Open())
+                using (var reader = new BinaryReader(stream))
+                {
+                    PreloadContent = reader.ReadBytes(PreloadBytes);
+                    return PreloadContent;
+                }
+            }
+        }
+
+        public VPKEntry(ZipArchiveEntry entry)
+        {
+            Index = 0x7FFF;
+            ZipEntry = entry;
+            PreloadBytes = (int)entry.Length;
         }
     }
 }
