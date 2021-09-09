@@ -28,6 +28,9 @@ namespace Source2Roblox.Geometry
 
     public static class MeshBuilder
     {
+
+        private const float DEG_TO_RAD = (float)(Math.PI / 180f);
+        
         public static Region3 ComputeAABB(IEnumerable<Vector3> vertices)
         {
             float min_X = float.MaxValue,
@@ -515,7 +518,7 @@ namespace Source2Roblox.Geometry
             {
                 Technology = Technology.ShadowMap,
                 EnvironmentSpecularScale = 0.2f,
-                EnvironmentDiffuseScale = 0.5f,
+                EnvironmentDiffuseScale = 0.2f,
                 OutdoorAmbient = new Color3(),
                 Ambient = new Color3(),
                 GlobalShadows = true,
@@ -597,6 +600,9 @@ namespace Source2Roblox.Geometry
                 var ambient = lightEnv.TryGet<Ambient>("_ambient");
                 var light = lightEnv.TryGet<Ambient>("_light");
 
+                var angles = lightEnv.Get<Vector3>("angles");
+                var pitch = lightEnv.GetInt("pitch");
+
                 if (ambient != null)
                 {
                     var black = new Color3();
@@ -608,6 +614,26 @@ namespace Source2Roblox.Geometry
                 {
                     lighting.ColorShift_Top = light.Value.Color;
                     lighting.ExposureCompensation = light.Value.Brightness / 1000f;
+                }
+
+                if (angles != null)
+                {
+                    if (pitch != null)
+                        angles = new Vector3(pitch.Value, angles.Y, angles.Z);
+
+                    lighting.GeographicLatitude = -angles.X;
+                    angles = new Vector3(90 - angles.X, angles.Y, angles.Z);
+
+                    var cf = Entity.GetCFrame(new Vector3(), angles);
+                    var sunDir = -cf.UpVector;
+
+                    var longitude = Math.Atan2(-sunDir.Y, -sunDir.X);
+                    var clockTime = 24 + ((longitude / (Math.PI * 2)) * 24 - 6);
+
+                    var hour = (int)clockTime;
+                    var min = (int)((clockTime - hour) * 60);
+
+                    lighting.TimeOfDay = $"{hour}:{min}";
                 }
             }
 
@@ -1047,23 +1073,29 @@ namespace Source2Roblox.Geometry
 
                         light = new SpotLight() 
                         {
-                            Angle = cone ?? 45,
-                            Face = NormalId.Front,
+                            Angle = (cone ?? 45) * 2,
+                            Face = NormalId.Right,
                             Range = 60
                         };
                     }
 
+                    origin /= Program.STUDS_TO_VMF;
+
                     if (pitch != null)
                         angles = new Vector3(pitch.Value, angles.Y, angles.Z);
+
+                    var cf = new CFrame(origin.X, origin.Z, -origin.Y)
+                           * CFrame.Angles(0, angles.Y * DEG_TO_RAD, 0)
+                           * CFrame.Angles(0, 0, angles.X * DEG_TO_RAD);
 
                     var emitter = new Part()
                     {
                         Name = lightEnt.Name,
-                        CFrame = Entity.GetCFrame(origin, angles),
                         Size = new Vector3(),
-                        Anchored = true,
                         CanCollide = false,
                         CanTouch = false,
+                        Anchored = true,
+                        CFrame = cf,
                         Transparency = 1,
                         Parent = workspace
                     };
