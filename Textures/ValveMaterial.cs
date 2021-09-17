@@ -21,10 +21,13 @@ namespace Source2Roblox.Textures
         public string DetailPath;
         public string BumpPath;
         public string IrisPath;
+        public string Shader;
 
+        public bool EnvMap = false;
         public bool NoAlpha = true;
         public bool Additive = false;
         public bool SelfIllum = false;
+        public bool SelfShadowedBump = false;
         public Material Material = Material.Plastic;
 
         public Image SaveVTF(string path, string rootDir, bool? noAlpha = null)
@@ -52,11 +55,22 @@ namespace Source2Roblox.Textures
             {
                 if (File.Exists(filePath))
                 {
-                    var preload = Image.FromFile(filePath);
-                    handledFiles.Add(filePath, preload);
+                    bool canPreload = true;
 
-                    Console.WriteLine($"\tPreloaded {path}");
-                    return preload;
+                    if (SelfShadowedBump)
+                    {
+                        string sourcePath = filePath.Replace("ssbump", "ssbump-source");
+                        canPreload = File.Exists(sourcePath);
+                    }
+
+                    if (canPreload)
+                    {
+                        var preload = Image.FromFile(filePath);
+                        handledFiles.Add(filePath, preload);
+
+                        Console.WriteLine($"\tPreloaded {path}");
+                        return preload;
+                    }
                 }
 
                 // TODO: Implement Pakfile Lump.
@@ -73,6 +87,15 @@ namespace Source2Roblox.Textures
                 {
                     var vtf = new VTFFile(vtfReader, noAlpha ?? NoAlpha);
                     bitmap = vtf.HighResImage;
+
+                    if (SelfShadowedBump)
+                    {
+                        var normalMap = SSBump.ToNormalMap(bitmap);
+                        string sourcePath = filePath.Replace("ssbump", "ssbump-source");
+
+                        bitmap.Save(sourcePath);
+                        bitmap = normalMap;
+                    }
 
                     handledFiles.Add(path, bitmap);
                 }
@@ -128,6 +151,16 @@ namespace Source2Roblox.Textures
                 case "$selfillum":
                 {
                     SelfIllum = (value == "1");
+                    break;
+                }
+                case "$envmap":
+                {
+                    EnvMap = true;
+                    break;
+                }
+                case "$ssbump":
+                {
+                    SelfShadowedBump = true;
                     break;
                 }
                 case "$alphatest":
@@ -318,11 +351,14 @@ namespace Source2Roblox.Textures
 
             using (var stream = GameMount.OpenRead(path, game))
             {
-                var vmt = vmtHelper
-                    .Deserialize(stream)
-                    .ToList();
+                var vmt = vmtHelper.Deserialize(stream);
+                Shader = vmt.Name.ToLowerInvariant();
 
-                vmt.ForEach(ReadEntry);
+                if (Shader == "LightmappedGeneric")
+                    NoAlpha = true;
+
+                var keys = vmt.ToList();
+                keys.ForEach(ReadEntry);
             }
         }
     }

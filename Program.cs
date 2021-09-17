@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using Source2Roblox.FileSystem;
 using Source2Roblox.Geometry;
@@ -114,12 +115,18 @@ namespace Source2Roblox
                     }
 
                     var lowRes = file.LowResImage;
+                    var highRes = file.HighResImage;
 
                     if (lowRes != null)
                     {
                         string lowResPath = Path.Combine(dir, $"{name}_LOW_RES.png");
                         lowRes.Save(lowResPath);
                     }
+
+                    var normalMap = SSBump.ToNormalMap(highRes);
+                    string normalPath = Path.Combine(dir, $"{name}_NORMAL_MAP.png");
+
+                    normalMap.Save(normalPath);
                 }
             }
 

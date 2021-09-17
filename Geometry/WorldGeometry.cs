@@ -443,19 +443,23 @@ namespace Source2Roblox.Geometry
                 var sqrtArea = Math.Sqrt(area);
 
                 var searchArea = (int)Math.Max(4000, sqrtArea * 5);
+                var material = face.Material.ToLowerInvariant();
                 var cluster = new HashSet<Face>() { face };
 
-                var nearby = faceOctree
-                    .RadiusSearch(face.Center, searchArea)
-                    .Where(other => other.Material == face.Material)
-                    .Where(other => other.Entity == face.Entity)
-                    .Where(facesLeft.Contains)
-                    .OrderBy(other => other.FaceIndex);
-
-                foreach (var other in nearby)
+                if (!material.StartsWith("lights/white"))
                 {
-                    facesLeft.Remove(other);
-                    cluster.Add(other);
+                    var nearby = faceOctree
+                        .RadiusSearch(face.Center, searchArea)
+                        .Where(other => other.Material == face.Material)
+                        .Where(other => other.Entity == face.Entity)
+                        .Where(facesLeft.Contains)
+                        .OrderBy(other => other.FaceIndex);
+
+                    foreach (var other in nearby)
+                    {
+                        facesLeft.Remove(other);
+                        cluster.Add(other);
+                    }
                 }
 
                 FaceClusters.Add(cluster);

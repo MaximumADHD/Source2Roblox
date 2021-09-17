@@ -3,34 +3,36 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 using Source2Roblox.FileSystem;
+using Source2Roblox.Geometry.MeshTypes;
 using Source2Roblox.Models;
-using Source2Roblox.World;
+using Source2Roblox.Octree;
 using Source2Roblox.Textures;
+using Source2Roblox.Upload;
+using Source2Roblox.World;
+using Source2Roblox.World.Types;
 
 using RobloxFiles;
 using RobloxFiles.Enums;
 using RobloxFiles.DataTypes;
-using Source2Roblox.World.Types;
-using Source2Roblox.Geometry.MeshTypes;
-using Source2Roblox.Upload;
-using System.Threading.Tasks;
-using Source2Roblox.Octree;
+
 
 namespace Source2Roblox.Geometry
 {
-    public struct ModelRequest
-    {
-        public string ModelName;
-        public int Skin;
-    }
-
     public static class MeshBuilder
     {
+        private struct ModelRequest
+        {
+            public string ModelName;
+            public int Skin;
+        }
 
         private const float DEG_TO_RAD = (float)(Math.PI / 180f);
-        
+        private const string ENV_DARK = "materials/dev/reflectivity_10b.vtf";
+        private const string ENV_LIGHT = "materials/dev/reflectivity_90b.vtf";
+
         public static Region3 ComputeAABB(IEnumerable<Vector3> vertices)
         {
             float min_X = float.MaxValue,
@@ -294,13 +296,13 @@ namespace Source2Roblox.Geometry
                 var size = aabb.Size;
 
                 if (size.X <= 0.1f)
-                    size += new Vector3(0.1f, 0, 0);
+                    size = new Vector3(0.1f, size.Y, size.Z);
 
                 if (size.Y <= 0.1f)
-                    size += new Vector3(0, 0.1f, 0);
+                    size = new Vector3(size.X, 0.1f, size.Z);
 
                 if (size.Z <= 0.1f)
-                    size += new Vector3(0, 0, 0.1f);
+                    size = new Vector3(size.X, size.Y, 0.1f);
 
                 if (!string.IsNullOrEmpty(vmt.IrisPath))
                 {
@@ -377,6 +379,20 @@ namespace Source2Roblox.Geometry
 
                     if (!string.IsNullOrEmpty(bumpPath))
                         assetManager.BindAssetId(bumpPath, uploadPool, surface, "NormalMap");
+
+                    vmt.SaveVTF(ENV_DARK, rootWorkDir);
+                    vmt.SaveVTF(ENV_LIGHT, rootWorkDir);
+
+                    if (vmt.EnvMap)
+                    {
+                        assetManager.BindAssetId(ENV_DARK, uploadPool, surface, "RoughnessMap");
+                        assetManager.BindAssetId(ENV_LIGHT, uploadPool, surface, "MetalnessMap");
+                    }
+                    else
+                    {
+                        assetManager.BindAssetId(ENV_DARK, uploadPool, surface, "MetalnessMap");
+                        assetManager.BindAssetId(ENV_LIGHT, uploadPool, surface, "RoughnessMap");
+                    }
 
                     surface.Parent = meshPart;
                     meshPart.Parent = exportModel;
@@ -516,7 +532,7 @@ namespace Source2Roblox.Geometry
 
             var lighting = new Lighting()
             {
-                Technology = Technology.ShadowMap,
+                Technology = Technology.Future,
                 EnvironmentSpecularScale = 0.2f,
                 EnvironmentDiffuseScale = 0.2f,
                 OutdoorAmbient = new Color3(),
@@ -749,14 +765,14 @@ namespace Source2Roblox.Geometry
                     foreach (var vert in mesh.Verts)
                         vert.Position -= origin;
 
-                    if (size.X <= 0.1f)
-                        size += new Vector3(0.1f, 0, 0);
+                    if (size.X < 0.1f)
+                        size = new Vector3(0.1f, size.Y, size.Z);
 
-                    if (size.Y <= 0.1f)
-                        size += new Vector3(0, 0.1f, 0);
+                    if (size.Y < 0.1f)
+                        size = new Vector3(size.X, 0.1f, size.Z);
 
-                    if (size.Z <= 0.1f)
-                        size += new Vector3(0, 0, 0.1f);
+                    if (size.Z < 0.1f)
+                        size = new Vector3(size.X, size.Y, 0.1f);
 
                     mesh.NumVerts = mesh.Verts.Count;
                     mesh.NumFaces = mesh.Faces.Count;
@@ -773,6 +789,7 @@ namespace Source2Roblox.Geometry
                         InitialSize = size,
                         DoubleSided = true,
                         Anchored = true,
+                        Locked = true,
                         Size = size,
                         CFrame = cf,
                     };
@@ -848,17 +865,38 @@ namespace Source2Roblox.Geometry
 
                         if (!string.IsNullOrEmpty(diffuse))
                         {
+                            var baseLight = new SurfaceLight()
+                            {
+                                Angle = 180,
+                                Shadows = true,
+                                Brightness = .2f,
+                            };
+
+                            var addFace = new Action<NormalId>(face =>
+                            {
+                                var light = baseLight.Clone() as SurfaceLight;
+                                light.Parent = meshPart;
+                                light.Face = face;
+                            });
+
                             if (meshPart.Name.StartsWith("lights/white"))
                             {
-                                for (int i = 0; i < 6; i++)
+                                if (size.X > 0.1f && size.Z > 0.1f)
                                 {
-                                    _ = new SurfaceLight()
-                                    {
-                                        Angle = 180,
-                                        Shadows = true,
-                                        Face = (NormalId)i,
-                                        Parent = meshPart
-                                    };
+                                    addFace(NormalId.Top);
+                                    addFace(NormalId.Bottom);
+                                }
+
+                                if (size.X > 0.1f && size.Y > 0.1f)
+                                {
+                                    addFace(NormalId.Front);
+                                    addFace(NormalId.Back);
+                                }
+
+                                if (size.Y > 0.01f && size.Z > 0.1f)
+                                {
+                                    addFace(NormalId.Left);
+                                    addFace(NormalId.Right);
                                 }
 
                                 vmt.Material = Material.Neon;
@@ -873,6 +911,20 @@ namespace Source2Roblox.Geometry
                         {
                             vmt.SaveVTF(bump, sourceDir, true);
                             assetManager.BindAssetId(bump, uploadPool, surface, "NormalMap");
+                        }
+
+                        vmt.SaveVTF(ENV_DARK, sourceDir);
+                        vmt.SaveVTF(ENV_LIGHT, sourceDir);
+
+                        if (vmt.EnvMap)
+                        {
+                            assetManager.BindAssetId(ENV_DARK, uploadPool, surface, "RoughnessMap");
+                            assetManager.BindAssetId(ENV_LIGHT, uploadPool, surface, "MetalnessMap");
+                        }
+                        else
+                        {
+                            assetManager.BindAssetId(ENV_DARK, uploadPool, surface, "MetalnessMap");
+                            assetManager.BindAssetId(ENV_LIGHT, uploadPool, surface, "RoughnessMap");
                         }
 
                         meshPart.Material = vmt.Material;
@@ -1100,9 +1152,113 @@ namespace Source2Roblox.Geometry
                         Parent = workspace
                     };
 
-                    light.Brightness = (effects?.Brightness ?? 1000f) / 500f;
+                    light.Brightness = (effects?.Brightness ?? 1000f) / 800f;
                     light.Color = effects?.Color ?? new Color3(1, 1, 1);
                     light.Parent = emitter;
+                    light.Shadows = true;
+                }
+            }
+
+            var ropes = bsp.FindEntitiesOfClass("keyframe_rope");
+            var ropeDict = new Dictionary<string, Attachment>();
+
+            var ropeBin = new Part()
+            {
+                Name = "Ropes",
+                Size = new Vector3(),
+                Transparency = 1,
+                Locked = true,
+                Anchored = true,
+                CanQuery = false,
+                CanTouch = false,
+                CanCollide = false,
+                Parent = workspace
+            };
+
+            foreach (var rope in ropes)
+            {
+                var angles = new Vector3();
+                var origin = rope.Get<Vector3>("origin");
+
+                var ropeAtt = new Attachment()
+                {
+                    Name = rope.Name,
+                    CFrame = Entity.GetCFrame(origin, angles),
+                    Parent = ropeBin
+                };
+
+                ropeDict[rope.Name] = ropeAtt;
+            }
+
+            foreach (var rope in ropes)
+            {
+                string material = rope
+                    .Get<string>("ropematerial")
+                    .Replace("cable/", "");
+
+                if (material == "chain")
+                    continue;
+
+                string key0 = rope.Name,
+                       key1 = rope.GetString("nextkey");
+
+                if (key1 == null)
+                    continue;
+
+                if (!ropeDict.TryGetValue(key0, out var att0))
+                    continue;
+
+                if (!ropeDict.TryGetValue(key1, out var att1))
+                    continue;
+
+                var length = (att1.CFrame.Position - att0.CFrame.Position).Magnitude;
+                var slack = rope.TryGet<float>("slack");
+
+                if (slack.HasValue)
+                    length += slack.Value / Program.STUDS_TO_VMF / 2;
+
+                var ropeConstraint = new RopeConstraint()
+                {
+                    Name = key0,
+                    Visible = true,
+                    Attachment0 = att0,
+                    Attachment1 = att1,
+                    Length = length,
+                    Parent = ropeBin
+                };
+
+                var width = rope.TryGet<float>("width");
+
+                if (width.HasValue)
+                    ropeConstraint.Thickness = width.Value / 10f;
+
+                switch (material)
+                {
+                    case "cable":
+                    {
+                        ropeConstraint.Color = BrickColor.FromName("Really black");
+                        break;
+                    }
+                    case "red":
+                    {
+                        ropeConstraint.Color = BrickColor.Red();
+                        break;
+                    }
+                    case "green":
+                    {
+                        ropeConstraint.Color = BrickColor.Green();
+                        break;
+                    }
+                    case "blue":
+                    {
+                        ropeConstraint.Color = BrickColor.Blue();
+                        break;
+                    }
+                    default:
+                    {
+                        ropeConstraint.Color = BrickColor.FromName("Earth orange");
+                        break;
+                    }
                 }
             }
 
