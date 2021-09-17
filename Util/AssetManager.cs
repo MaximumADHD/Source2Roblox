@@ -127,6 +127,12 @@ namespace Source2Roblox.Upload
                 {
                     return () => Task.Run(async () =>
                     {
+                        if (File.Exists(assetPath))
+                        {
+                            string assetId = File.ReadAllText(assetPath);
+                            return $"rbxassetid://{assetId}";
+                        }
+
                         var extension = info.Extension;
                         string name = info.Name.Replace(extension, "");
                         string endpoint = null;

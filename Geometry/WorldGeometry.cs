@@ -57,6 +57,9 @@ namespace Source2Roblox.Geometry
                 }
             }
 
+            if (material.EndsWith("_wvt_patch"))
+                material = material.Replace("_wvt_patch", "");
+
             if (face != null)
                 face.Material = material;
 
