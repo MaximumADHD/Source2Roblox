@@ -7,17 +7,19 @@ using ValveKeyValue;
 using Source2Roblox.FileSystem;
 using System.Linq;
 using RobloxFiles.Enums;
+using System.Diagnostics;
 
 namespace Source2Roblox.Textures
 {
-
     public class ValveMaterial
     {
         private static readonly KVSerializer vmtHelper = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
         private static readonly Dictionary<string, Image> handledFiles = new Dictionary<string, Image>();
-
         private readonly GameMount Game;
-        public string DiffusePath;
+
+        public string[] DiffusePaths = new string[2];
+        public int DiffuseIndex = 0;
+
         public string DetailPath;
         public string BumpPath;
         public string IrisPath;
@@ -29,6 +31,8 @@ namespace Source2Roblox.Textures
         public bool SelfIllum = false;
         public bool SelfShadowedBump = false;
         public Material Material = Material.Plastic;
+
+        public string DiffusePath => DiffusePaths[DiffuseIndex];
 
         public Image SaveVTF(string path, string rootDir, bool? noAlpha = null)
         {
@@ -90,11 +94,14 @@ namespace Source2Roblox.Textures
 
                     if (SelfShadowedBump)
                     {
-                        var normalMap = SSBump.ToNormalMap(bitmap);
                         string sourcePath = filePath.Replace("ssbump", "ssbump-source");
 
-                        bitmap.Save(sourcePath);
-                        bitmap = normalMap;
+                        if (sourcePath != filePath)
+                        {
+                            var normalMap = SSBump.ToNormalMap(bitmap);
+                            bitmap.Save(sourcePath);
+                            bitmap = normalMap;
+                        }
                     }
 
                     handledFiles.Add(path, bitmap);
@@ -124,7 +131,12 @@ namespace Source2Roblox.Textures
                 }
                 case "$basetexture":
                 {
-                    DiffusePath = $"materials/{value}.vtf";
+                    DiffusePaths[0] = $"materials/{value}.vtf";
+                    break;
+                }
+                case "$basetexture2":
+                {
+                    DiffusePaths[1] = $"materials/{value}.vtf";
                     break;
                 }
                 case "$detail":
@@ -138,12 +150,13 @@ namespace Source2Roblox.Textures
                     {
                         var temp = DetailPath;
                         DetailPath = DiffusePath;
-                        DiffusePath = temp;
+                        DiffusePaths[0] = temp;
                     }
 
                     break;
                 }
                 case "$bumpmap":
+                case "$normalmap":
                 {
                     BumpPath = $"materials/{value}.vtf";
                     break;

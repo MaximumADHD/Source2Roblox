@@ -246,7 +246,7 @@ namespace Source2Roblox.Geometry
                 }
 
                 var center = new Vector3();
-                RegisterMaterial(material, game, face);
+                var vmt = RegisterMaterial(material, game, face);
 
                 if (face.Skip)
                     continue;
@@ -305,6 +305,8 @@ namespace Source2Roblox.Geometry
                     numEdges = (dispSize * dispSize);
 
                     // Generate Vertices and UVs.
+                    var alpha = 0f;
+
                     for (int y = 0; y < dispSize; y++)
                     {
                         var rowSample = (float)y / (dispSize - 1);
@@ -321,12 +323,17 @@ namespace Source2Roblox.Geometry
 
                             var dispVert = bsp.DispVerts[i];
                             pos += dispVert.Vector * dispVert.Dist;
-                            center += (pos / numEdges);
+
+                            center += pos / numEdges;
+                            alpha += dispVert.Alpha / numEdges;
 
                             Mesh.AddVertex(pos.X, pos.Z, -pos.Y);
                             Mesh.AddUV(uv.X, 1f - uv.Y);
                         }
                     }
+
+                    if (alpha > 127f && vmt.DiffusePaths[1] != null)
+                        vmt.DiffuseIndex = 1;
 
                     // Generate Normals.
                     var normalSamples = new Dictionary<int, Vector3>();
