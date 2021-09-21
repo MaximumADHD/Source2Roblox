@@ -30,8 +30,8 @@ namespace Source2Roblox.Geometry
         }
 
         private const float DEG_TO_RAD = (float)(Math.PI / 180f);
-        private const string ENV_DARK = "materials/dev/reflectivity_10b.vtf";
-        private const string ENV_LIGHT = "materials/dev/reflectivity_90b.vtf";
+        private const string ENV_DARK = "materials/tools/toolsblack.vtf";
+        private const string ENV_LIGHT = "materials/lights/white002.vtf";
 
         public static Region3 ComputeAABB(IEnumerable<Vector3> vertices)
         {
@@ -1028,6 +1028,12 @@ namespace Source2Roblox.Geometry
                     models[modelName] = skins;
                 }
 
+                if (!GameMount.HasFile(modelName, game))
+                {
+                    Console.WriteLine($"Could not find model: {modelName}");
+                    continue;
+                }
+
                 var modelFile = new ModelFile(modelName, game);
                 skins[skin] = BakeMDL_RBXM(modelFile, skin);
             }
@@ -1215,7 +1221,7 @@ namespace Source2Roblox.Geometry
                 var slack = rope.TryGet<float>("slack");
 
                 if (slack.HasValue)
-                    length += slack.Value / Program.STUDS_TO_VMF / 2;
+                    length += slack.Value / Program.STUDS_TO_VMF / 8;
 
                 var ropeConstraint = new RopeConstraint()
                 {

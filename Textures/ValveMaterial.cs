@@ -8,6 +8,7 @@ using Source2Roblox.FileSystem;
 using System.Linq;
 using RobloxFiles.Enums;
 using System.Diagnostics;
+using System.Text;
 
 namespace Source2Roblox.Textures
 {
@@ -115,6 +116,17 @@ namespace Source2Roblox.Textures
             return bitmap;
         }
 
+        private static string ReadVtfPath(string path)
+        {
+            if (!path.StartsWith("materials/"))
+                path = $"materials/{path}";
+
+            if (!path.EndsWith(".vtf"))
+                path = $"{path}.vtf";
+
+            return path;
+        }
+
         private void ReadEntry(KVObject entry)
         {
             string key = entry.Name.ToLowerInvariant();
@@ -131,17 +143,17 @@ namespace Source2Roblox.Textures
                 }
                 case "$basetexture":
                 {
-                    DiffusePaths[0] = $"materials/{value}.vtf";
+                    DiffusePaths[0] = ReadVtfPath(value);
                     break;
                 }
                 case "$basetexture2":
                 {
-                    DiffusePaths[1] = $"materials/{value}.vtf";
+                    DiffusePaths[1] = ReadVtfPath(value);
                     break;
                 }
                 case "$detail":
                 {
-                    DetailPath = $"materials/{value}.vtf";
+                    DetailPath = ReadVtfPath(value);
                     break;
                 }
                 case "$detailblendmode":
@@ -158,7 +170,7 @@ namespace Source2Roblox.Textures
                 case "$bumpmap":
                 case "$normalmap":
                 {
-                    BumpPath = $"materials/{value}.vtf";
+                    BumpPath = ReadVtfPath(value);
                     break;
                 }
                 case "$selfillum":
@@ -189,7 +201,7 @@ namespace Source2Roblox.Textures
                 }
                 case "$iris":
                 {
-                    IrisPath = $"materials/{value}.vtf";
+                    IrisPath = ReadVtfPath(value);
                     break;
                 }
                 case "$surfaceprop":
@@ -348,6 +360,8 @@ namespace Source2Roblox.Textures
 
         public ValveMaterial(string path, GameMount game = null)
         {
+            path = Program.CleanPath(path);
+
             if (!path.StartsWith("materials"))
                 path = "materials/" + path;
 
@@ -364,6 +378,15 @@ namespace Source2Roblox.Textures
 
             using (var stream = GameMount.OpenRead(path, game))
             {
+                while (true)
+                {
+                    if (stream.ReadByte() != 0xFF)
+                    {
+                        stream.Position--;
+                        break;
+                    }
+                }
+
                 var vmt = vmtHelper.Deserialize(stream);
                 Shader = vmt.Name.ToLowerInvariant();
 

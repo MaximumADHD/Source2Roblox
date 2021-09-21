@@ -106,6 +106,8 @@ namespace Source2Roblox.World
 
         private void ReadLump(BinaryReader bspReader, LumpType type)
         {
+            Console.WriteLine($"\tReading '{type}' Lump...");
+
             var stream = bspReader.BaseStream;
             var i = (int)type;
 

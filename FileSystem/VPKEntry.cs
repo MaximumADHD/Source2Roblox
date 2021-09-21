@@ -13,7 +13,7 @@ namespace Source2Roblox.FileSystem
         public readonly int PreloadBytes;
         public readonly ZipArchiveEntry ZipEntry;
 
-        private byte[] PreloadContent;
+        public byte[] PreloadContent;
 
         public VPKEntry(BinaryReader reader)
         {
@@ -48,6 +48,7 @@ namespace Source2Roblox.FileSystem
                 using (var stream = ZipEntry.Open())
                 using (var reader = new BinaryReader(stream))
                 {
+                    reader.Skip(2);
                     PreloadContent = reader.ReadBytes(PreloadBytes);
                     return PreloadContent;
                 }

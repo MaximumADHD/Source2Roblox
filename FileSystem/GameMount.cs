@@ -53,6 +53,8 @@ namespace Source2Roblox.FileSystem
 
                 if (value.StartsWith("|all_source_engine_paths|"))
                     value = value.Replace("|all_source_engine_paths|", $"{gameRoot}/");
+                else if (value.StartsWith("|gameinfo_path|"))
+                    value = value.Replace("|gameinfo_path|", GameDir);
                 else
                     value = $"{gameRoot}/{value}";
 
@@ -64,6 +66,8 @@ namespace Source2Roblox.FileSystem
 
                 if (value.EndsWith("/*"))
                     value = value.Replace("/*", "");
+                else if (value.EndsWith("."))
+                    value = value.Replace(".", "");
                 else
                     continue;
 
@@ -74,6 +78,9 @@ namespace Source2Roblox.FileSystem
                         if (!file.EndsWith(".vpk"))
                             continue;
 
+                        if (value == GameDir && !file.EndsWith("_dir.vpk"))
+                            continue;
+
                         vpkPaths.Add(file);
                     }
                 }
@@ -82,6 +89,7 @@ namespace Source2Roblox.FileSystem
             foreach (string path in vpkPaths)
             {
                 string localPath = path
+                    .Replace("_dir", "")
                     .Replace(".vpk", "")
                     .Replace('\\', '/');
 
@@ -173,7 +181,7 @@ namespace Source2Roblox.FileSystem
             var route = GetRouting(path);
 
             if (route == null)
-                throw new FileNotFoundException("Couldn't find file:", path);
+                throw new FileNotFoundException($"Couldn't find file: {path}");
 
             Console.WriteLine($"Opening {path}");
 

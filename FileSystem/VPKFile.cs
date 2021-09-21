@@ -95,6 +95,13 @@ namespace Source2Roblox.FileSystem
                     using (var reader = new BinaryReader(bucket, Encoding.UTF8, true))
                         buffer = reader.ReadBytes((int)entry.Size);
 
+                    if (entry.PreloadBytes > 0)
+                    {
+                        var preload = entry.PreloadContent.Skip(2);
+                        var stitched = preload.Concat(buffer);
+                        buffer = stitched.ToArray();
+                    }
+
                     Binaries[path] = buffer;
                 }
             }

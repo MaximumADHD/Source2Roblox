@@ -396,22 +396,6 @@ namespace Source2Roblox.Models
                                         Flags = (StripFlags)vtxReader.ReadByte(),
                                     };
 
-                                    int numBoneStateChanges = vtxReader.ReadInt32(),
-                                        boneStateChangeOffset = vtxReader.ReadInt32();
-
-                                    var boneStateChanges = new BoneStateChange[numBoneStateChanges];
-                                    vtxStream.Position = stripPos + boneStateChangeOffset;
-                                    strip.BoneStateChanges = boneStateChanges;
-
-                                    for (int CHANGE = 0; CHANGE < numBoneStateChanges; CHANGE++)
-                                    {
-                                        boneStateChanges[CHANGE] = new BoneStateChange()
-                                        {
-                                            HardwareId = vtxReader.ReadInt32(),
-                                            NewBoneId = vtxReader.ReadInt32()
-                                        };
-                                    }
-
                                     stripPos += 0x1B;
                                     vtxStream.Position = stripPos;
 
@@ -527,10 +511,8 @@ namespace Source2Roblox.Models
                                 }
                             }
                         }
-                        else
+                        else if ((flags & StripFlags.IsTriStrip) != StripFlags.None)
                         {
-                            Debug.Assert((flags & StripFlags.IsTriStrip) != StripFlags.None);
-
                             for (int i = 0; i < strip.NumIndices - 2; ++i)
                             {
                                 int index = strip.IndexOffset + i;
