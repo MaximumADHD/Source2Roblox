@@ -93,13 +93,18 @@ namespace Source2Roblox.FileSystem
                     .Replace(".vpk", "")
                     .Replace('\\', '/');
 
+                var info = new FileInfo(localPath);
+                string name = info.Name;
+
+                if (Mounts.ContainsKey(name))
+                    continue;
+
                 Console.WriteLine($"\tMounting {localPath}...");
                 var vpk = new VPKFile(localPath);
 
                 if (!vpk.Mounted)
                     continue;
 
-                string name = vpk.ToString();
                 Mounts.Add(name, vpk);
             }
 
