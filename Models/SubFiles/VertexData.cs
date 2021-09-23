@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 
@@ -66,12 +68,35 @@ namespace Source2Roblox.Models
             var oldUV = vertex.UV;
             var newUV = new Vector2(oldUV.X, oldUV.Y);
 
-            return new RobloxVertex()
+            var newVertex = new RobloxVertex()
             {
+                Color = Color.FromArgb(255, 255, 255, 255),
                 Position = newPos,
                 Normal = newNorm,
-                UV = newUV
+                UV = newUV,
             };
+
+            if (vertex.NumBones > 0)
+            {
+                var envelope = new Envelope()
+                {
+                    Bones = new byte[4] { 255, 255, 255, 255 },
+                    Weights = new byte[4] { 255, 255, 255, 255 },
+                };
+
+                for (int i = 0; i < vertex.NumBones; i++)
+                {
+                    var bone = vertex.Bones[i];
+                    envelope.Bones[i] = bone;
+
+                    var weight = vertex.Weights[i];
+                    envelope.Weights[i] = (byte)Math.Max(0, Math.Min(1, weight) * 255);
+                }
+
+                newVertex.Envelope = envelope;
+            }
+
+            return newVertex;
         }
     }
 

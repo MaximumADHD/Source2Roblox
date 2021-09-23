@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -24,7 +23,7 @@ namespace Source2Roblox.Geometry
         public Tangent Tangent = new Tangent(0, 0, -1, 1);
 
         public Color? Color;
-        public BoneWeights? Weights;
+        public Envelope? Envelope;
 
         public static implicit operator StudioVertex(RobloxVertex vertex)
         {
@@ -37,7 +36,7 @@ namespace Source2Roblox.Geometry
             var oldUV = vertex.UV;
             var newUV = new Vector2(oldUV.X, oldUV.Y);
 
-            return new StudioVertex
+            var newVertex = new StudioVertex
             {
                 NumBones = 0,
                 Bones = new byte[3] { 0, 0, 0 },
@@ -47,22 +46,44 @@ namespace Source2Roblox.Geometry
                 Normal = newNorm,
                 UV = newUV,
             };
+
+            Envelope? envelopePtr = vertex.Envelope;
+
+            if (envelopePtr.HasValue)
+            {
+                var envelope = envelopePtr.Value;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    byte bone = envelope.Bones[i];
+                    byte weight = envelope.Weights[i];
+
+                    if (bone == 0xFF)
+                        break;
+
+                    newVertex.NumBones++;
+                    newVertex.Bones[i] = bone;
+                    newVertex.Weights[i] = weight / 255f;
+                }
+            }
+
+            return newVertex;
         }
     }
 
-    public class Skinning
+    public class MeshSubset
     {
-        public uint FacesIndex;
-        public uint FacesLength;
+        public int FacesIndex;
+        public int FacesLength;
 
-        public uint VertsIndex;
-        public uint VertsLength;
+        public int VertsIndex;
+        public int VertsLength;
 
-        public uint NumBones;
+        public int NumBones;
         public ushort[] BoneIndices;
     }
 
-    public struct BoneWeights
+    public struct Envelope
     {
         public byte[] Bones;
         public byte[] Weights;
@@ -70,7 +91,7 @@ namespace Source2Roblox.Geometry
 
     public class RobloxMesh
     {
-        public int Version;
+        public uint Version;
         public ushort NumMeshes = 0;
 
         public int NumVerts = 0;
@@ -79,20 +100,20 @@ namespace Source2Roblox.Geometry
         public int NumFaces = 0;
         public List<int[]> Faces = new List<int[]>();
 
-        public short NumLODs;
-        public List<int> LODs;
+        public ushort NumLODs;
+        public List<uint> LODs;
 
-        public int NumBones = 0;
+        public uint NumBones = 0;
         public List<Bone> Bones;
 
-        public int NumSkinning = 0;
-        public List<Skinning> Skinning;
+        public ushort NumSubsets = 0;
+        public List<MeshSubset> Subsets;
 
         public int NameTableSize = 0;
         public byte[] NameTable;
 
         public bool HasLODs => (Version >= 3);
-        public bool HasSkinning => (Version >= 4);
+        public bool HasDeformation => (Version >= 4);
         public bool HasVertexColors { get; private set; }
 
         private static void LoadGeometry_Ascii(StringReader reader, RobloxMesh mesh)
@@ -148,7 +169,7 @@ namespace Source2Roblox.Geometry
                     if (index % 3 == 0)
                     {
                         int v = face * 3;
-                        int[] faceDef = new int[3] { v, v + 1, v + 2 };
+                        var faceDef = new int[3] { v, v + 1, v + 2 };
                         mesh.Faces.Add(faceDef);
                     }
                 }
@@ -160,30 +181,32 @@ namespace Source2Roblox.Geometry
             _ = reader.ReadBytes(13); // version x.xx\n
             _ = reader.ReadUInt16();  // Header size
 
-            if (mesh.HasSkinning)
+            if (mesh.HasDeformation)
             {
                 mesh.NumMeshes = reader.ReadUInt16();
 
                 mesh.NumVerts = reader.ReadInt32();
                 mesh.NumFaces = reader.ReadInt32();
 
-                mesh.NumLODs = reader.ReadInt16();
+                mesh.NumLODs = reader.ReadUInt16();
                 mesh.NumBones = reader.ReadUInt16();
 
                 mesh.NameTableSize = reader.ReadInt32();
-                mesh.NumSkinning = reader.ReadInt32();
+                mesh.NumSubsets = reader.ReadUInt16();
+
+                reader.Skip(2);
+                mesh.HasVertexColors = true;
             }
             else
             {
                 var sizeof_Vertex = reader.ReadByte();
-                mesh.HasVertexColors = (sizeof_Vertex > 36);
-
-                _ = reader.ReadByte();
+                mesh.HasVertexColors = sizeof_Vertex > 36;
+                reader.Skip(1);
 
                 if (mesh.HasLODs)
                 {
-                    _ = reader.ReadUInt16();
-                    mesh.NumLODs = reader.ReadInt16();
+                    reader.Skip(2);
+                    mesh.NumLODs = reader.ReadUInt16();
                 }
 
                 if (mesh.NumLODs > 0)
@@ -197,11 +220,11 @@ namespace Source2Roblox.Geometry
                 mesh.NameTable = new byte[0];
             }
 
-            mesh.LODs = new List<int>();
-            mesh.Faces = new List<int[]>();
+            mesh.LODs = new List<uint>();
             mesh.Bones = new List<Bone>();
+            mesh.Faces = new List<int[]>();
             mesh.Verts = new List<RobloxVertex>();
-            mesh.Skinning = new List<Skinning>();
+            mesh.Subsets = new List<MeshSubset>();
 
             // Read Vertices
             for (int i = 0; i < mesh.NumVerts; i++)
@@ -227,27 +250,27 @@ namespace Source2Roblox.Geometry
                 mesh.Verts.Add(vert);
             }
 
-            if (mesh.HasSkinning)
+            if (mesh.HasDeformation && mesh.NumBones > 0)
             {
-                // Read Bone Weights
+                // Read Envelopes
                 for (int i = 0; i < mesh.NumVerts; i++)
                 {
                     var vert = mesh.Verts[i];
 
-                    var weights = new BoneWeights()
+                    var envelope = new Envelope()
                     {
                         Bones = reader.ReadBytes(4),
                         Weights = reader.ReadBytes(4)
                     };
 
-                    vert.Weights = weights;
+                    vert.Envelope = envelope;
                 }
             }
 
             // Read Faces
             for (int i = 0; i < mesh.NumFaces; i++)
             {
-                int[] face = new int[3];
+                var face = new int[3];
 
                 for (int f = 0; f < 3; f++)
                     face[f] = reader.ReadInt32();
@@ -260,7 +283,7 @@ namespace Source2Roblox.Geometry
                 // Read LOD ranges
                 for (int i = 0; i < mesh.NumLODs; i++)
                 {
-                    int lod = reader.ReadInt32();
+                    uint lod = reader.ReadUInt32();
                     mesh.LODs.Add(lod);
                 }
             }
@@ -268,19 +291,23 @@ namespace Source2Roblox.Geometry
             var nameIndices = new Dictionary<Bone, int>();
             var parentIds = new Dictionary<Bone, ushort>();
 
-            if (mesh.HasSkinning)
+            if (mesh.HasDeformation)
             {
                 // Read Bones
                 for (int i = 0; i < mesh.NumBones; i++)
                 {
                     float[] cf = new float[12];
-
                     var bone = new Bone();
-                    nameIndices[bone] = reader.ReadInt32();
 
-                    reader.Skip(2);
+                    nameIndices[bone] = reader.ReadInt32();
                     parentIds[bone] = reader.ReadUInt16();
-                    
+
+                    // LOD Parent (ignored for now)
+                    reader.Skip(2);
+
+                    float culling = reader.ReadSingle();
+                    bone.SetAttribute("Culling", culling);
+
                     for (int m = 0; m < 12; m++)
                     {
                         int index = (m + 3) % 12;
@@ -324,25 +351,25 @@ namespace Source2Roblox.Geometry
                     }
                 }
 
-                // Read Skinning
-                for (int p = 0; p < mesh.NumSkinning; p++)
+                // Read Subsets
+                for (int p = 0; p < mesh.NumSubsets; p++)
                 {
-                    var skinning = new Skinning()
+                    var subset = new MeshSubset()
                     {
-                        FacesIndex = reader.ReadUInt32(),
-                        FacesLength = reader.ReadUInt32(),
+                        FacesIndex = reader.ReadInt32(),
+                        FacesLength = reader.ReadInt32(),
 
-                        VertsIndex = reader.ReadUInt32(),
-                        VertsLength = reader.ReadUInt32(),
+                        VertsIndex = reader.ReadInt32(),
+                        VertsLength = reader.ReadInt32(),
 
-                        NumBones = reader.ReadUInt32(),
+                        NumBones = reader.ReadInt32(),
                         BoneIndices = new ushort[26]
                     };
 
                     for (int i = 0; i < 26; i++)
-                        skinning.BoneIndices[i] = reader.ReadUInt16();
+                        subset.BoneIndices[i] = reader.ReadUInt16();
 
-                    mesh.Skinning.Add(skinning);
+                    mesh.Subsets.Add(subset);
                 }
             }
         }
@@ -360,7 +387,8 @@ namespace Source2Roblox.Geometry
 
                     for (int j = 0; j < 3; j++)
                     {
-                        var vert = Verts[face[j]];
+                        var index = (int)face[j];
+                        var vert = Verts[index];
 
                         writer.Write('[');
                         writer.Write(vert.Position * 2f);
@@ -460,7 +488,7 @@ namespace Source2Roblox.Geometry
 
                 for (int i = 0; i < NumFaces; i++)
                 {
-                    int[] faces = Faces[i];
+                    var faces = Faces[i];
 
                     for (int f = 0; f < 3; f++)
                     {
@@ -471,7 +499,7 @@ namespace Source2Roblox.Geometry
 
                 for (int i = 0; i < NumLODs; i++)
                 {
-                    int lod = LODs[i];
+                    uint lod = LODs[i];
                     writer.Write(lod);
                 }
             }
@@ -552,7 +580,7 @@ namespace Source2Roblox.Geometry
                         }
                         case "f":
                         {
-                            int[] face = new int[3];
+                            var face = new int[3];
 
                             for (int i = 0; i < 3; i++)
                             {
@@ -604,7 +632,7 @@ namespace Source2Roblox.Geometry
 
             string versionStr = file.Substring(8, 4);
             double version = Format.ParseDouble(versionStr);
-            var mesh = new RobloxMesh() { Version = (int)version };
+            var mesh = new RobloxMesh() { Version = (uint)version };
 
             if (mesh.Version == 1)
             {
