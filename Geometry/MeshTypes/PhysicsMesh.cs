@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace Source2Roblox.Geometry.MeshTypes
@@ -81,10 +82,11 @@ namespace Source2Roblox.Geometry.MeshTypes
             }
         }
 
-        public PhysicsMesh(RobloxMesh mesh)
+        public PhysicsMesh(RobloxMeshFile meshFile)
         {
             // This is an awful hack but it'll work for now.
             var indices = new int[6] { 0, 2, 4, 5, 3, 1 };
+            var mesh = meshFile.Meshes.First();
 
             foreach (var face in mesh.Faces)
             {
@@ -94,7 +96,7 @@ namespace Source2Roblox.Geometry.MeshTypes
                 for (int i = 0; i < 3; i++)
                 {
                     int index = face[i];
-                    var vert = mesh.Verts[index];
+                    var vert = meshFile.Verts[index];
 
                     var pos = vert.Position;
                     subMesh.Vertices.Add(pos);

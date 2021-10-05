@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using Source2Roblox.FileSystem;
@@ -68,6 +69,7 @@ namespace Source2Roblox
 
             string gameDir = GetArg("-game");
             string model = GetArg("-model");
+            string mesh = GetArg("-mesh");
 
             string mapName = GetArg("-map");
             string vtfName = GetArg("-vtf");
@@ -83,6 +85,17 @@ namespace Source2Roblox
 
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
             GameMount = new GameMount(gameDir);
+
+            if (mesh != null)
+            {
+                var load = RobloxMeshFile.Open(mesh);
+                Debugger.Break();
+
+                var save = new MemoryStream();
+                load.Save(save);
+
+                Debugger.Break();
+            }
 
             if (vtfName != null)
             {

@@ -18,7 +18,6 @@ using RobloxFiles;
 using RobloxFiles.Enums;
 using RobloxFiles.DataTypes;
 
-
 namespace Source2Roblox.Geometry
 {
     public static class MeshBuilder
@@ -30,8 +29,9 @@ namespace Source2Roblox.Geometry
         }
 
         private const float DEG_TO_RAD = (float)(Math.PI / 180f);
-        private const string ENV_DARK = "materials/tools/toolsblack.vtf";
-        private const string ENV_LIGHT = "materials/lights/white002.vtf";
+        private const string ENV_DARK = "materials/dev/reflectivity_10b.vtf";
+        private const string ENV_LIGHT = "materials/dev/reflectivity_90b.vtf";
+        private static readonly CFrame BONE_OFFSET = CFrame.Angles(-90f * DEG_TO_RAD, 0, 0);
 
         public static Region3 ComputeAABB(IEnumerable<Vector3> vertices)
         {
@@ -204,6 +204,32 @@ namespace Source2Roblox.Geometry
             }
 
             string lastBodyPart = "";
+            var bones = new List<Bone>();
+
+            foreach (var studioBone in model.Bones)
+            {
+                int parent = studioBone.Parent;
+                var quat = studioBone.Quaternion;
+
+                var pos = studioBone.Position;
+                pos = new Vector3(pos.X, pos.Z, -pos.Y) / Program.STUDS_TO_VMF;
+
+                var cf = new CFrame(pos)
+                    * BONE_OFFSET
+                    * quat.ToCFrame()
+                    * BONE_OFFSET.Inverse();
+
+                var bone = new Bone()
+                {
+                    Name = studioBone.Name,
+                    CFrame = cf,
+                };
+
+                if (parent >= 0)
+                    bone.Parent = bones[parent];
+
+                bones.Add(bone);
+            }
 
             foreach (var meshBuffer in meshBuffers)
             {
@@ -220,22 +246,19 @@ namespace Source2Roblox.Geometry
                 var verts = meshBuffer.Vertices;
                 var indices = meshBuffer.Indices;
 
-                var mesh = new RobloxMesh()
-                {
-                    NumVerts = numVerts,
-                    NumFaces = numIndices / 3,
+                var meshFile = new RobloxMeshFile();
+                string matPath = meshBuffer.MaterialPath;
 
-                    Verts = new List<RobloxVertex>(),
-                    Faces = new List<int[]>()
-                };
-
-                mesh.NumVerts = meshBuffer.NumVerts;
-                mesh.NumFaces = meshBuffer.NumIndices / 3;
+                if (matPath == "")
+                    matPath = "error.vmt";
+                
+                var mesh = new RobloxMesh();
+                meshFile.Meshes.Add(mesh);
 
                 foreach (RobloxVertex vert in verts)
                 {
                     vert.Position -= center;
-                    mesh.Verts.Add(vert);
+                    meshFile.Verts.Add(vert);
                 }
 
                 for (int i = 0; i < numIndices; i += 3)
@@ -249,11 +272,6 @@ namespace Source2Roblox.Geometry
 
                     mesh.Faces.Add(face);
                 }
-
-                string matPath = meshBuffer.MaterialPath;
-
-                if (matPath == "")
-                    matPath = "error.vmt";
 
                 var info = new FileInfo(matPath);
                 string name = meshBuffer.BodyPart;
@@ -289,7 +307,7 @@ namespace Source2Roblox.Geometry
 
                 using (var stream = File.OpenWrite(meshPath))
                 {
-                    mesh.Save(stream);
+                    meshFile.Save(stream);
                     Console.WriteLine($"\tWrote {meshPath}");
                 }
 
@@ -418,6 +436,26 @@ namespace Source2Roblox.Geometry
                     largestMass = mass;
                     largestPart = part;
                 }
+            }
+
+            foreach (var bone in bones)
+                if (bone.Parent == null)
+                    bone.Parent = largestPart;
+
+            foreach (var part in parts)
+            {
+                if (part == largestPart)
+                    continue;
+
+                var weld = new Weld()
+                {
+                    C0 = largestPart.CFrame.ToObjectSpace(part.CFrame),
+                    Part0 = largestPart,
+                    Part1 = part,
+                };
+
+                part.Anchored = false;
+                weld.Parent = part;
             }
 
             string exportPath = Path.Combine(rootWorkDir, modelDir, $"{modelName}.rbxm");
@@ -680,7 +718,10 @@ namespace Source2Roblox.Geometry
                     meshName = $"cluster_{++clusterId}.mesh";
 
                 var meshPath = Path.Combine(mapDir, meshName);
+                var meshFile = new RobloxMeshFile();
+
                 var mesh = new RobloxMesh();
+                meshFile.Meshes.Add(mesh);
 
                 using (var meshStream = File.OpenWrite(meshPath))
                 {
@@ -697,7 +738,7 @@ namespace Source2Roblox.Geometry
                         int firstUV = face.FirstUV,
                             firstNorm = face.FirstNorm,
                             firstVert = face.FirstVert,
-                            vertIndex = mesh.Verts.Count;
+                            vertIndex = meshFile.Verts.Count;
 
                         for (int i = 0; i < numEdges; i++)
                         {
@@ -712,7 +753,7 @@ namespace Source2Roblox.Geometry
                                 UV = uv
                             };
 
-                            mesh.Verts.Add(vert);
+                            meshFile.Verts.Add(vert);
                         }
 
                         if (dispInfo >= 0)
@@ -751,7 +792,7 @@ namespace Source2Roblox.Geometry
                         }
                     }
 
-                    var verts = mesh.Verts
+                    var verts = meshFile.Verts
                         .Select(vert => vert.Position)
                         .ToList();
 
@@ -762,7 +803,7 @@ namespace Source2Roblox.Geometry
                     var origin = cf.Position;
                     var padding = new Vector3();
 
-                    foreach (var vert in mesh.Verts)
+                    foreach (var vert in meshFile.Verts)
                         vert.Position -= origin;
 
                     if (size.X < 0.1f)
@@ -774,12 +815,9 @@ namespace Source2Roblox.Geometry
                     if (size.Z < 0.1f)
                         size = new Vector3(size.X, size.Y, 0.1f);
 
-                    mesh.NumVerts = mesh.Verts.Count;
-                    mesh.NumFaces = mesh.Faces.Count;
+                    meshFile.Save(meshStream);
 
-                    mesh.Save(meshStream);
-
-                    var physicsMesh = new PhysicsMesh(mesh);
+                    var physicsMesh = new PhysicsMesh(meshFile);
                     var physics = physicsMesh.Serialize();
 
                     var meshPart = new MeshPart()

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -9,8 +10,6 @@ using System.Text.RegularExpressions;
 
 using RobloxFiles;
 using RobloxFiles.DataTypes;
-
-using Source2Roblox.Models;
 
 namespace Source2Roblox.Geometry
 {
@@ -23,64 +22,25 @@ namespace Source2Roblox.Geometry
         public Tangent Tangent = new Tangent(0, 0, -1, 1);
 
         public Color? Color;
-        public Envelope? Envelope;
-
-        public static implicit operator StudioVertex(RobloxVertex vertex)
-        {
-            var oldPos = vertex.Position * Program.STUDS_TO_VMF;
-            var newPos = new Vector3(oldPos.X, -oldPos.Z, oldPos.Y);
-
-            var oldNorm = vertex.Normal;
-            var newNorm = new Vector3(oldNorm.X, -oldNorm.Z, oldNorm.Y);
-
-            var oldUV = vertex.UV;
-            var newUV = new Vector2(oldUV.X, oldUV.Y);
-
-            var newVertex = new StudioVertex
-            {
-                NumBones = 0,
-                Bones = new byte[3] { 0, 0, 0 },
-                Weights = new float[3] { 0f, 0f, 0f },
-
-                Position = newPos,
-                Normal = newNorm,
-                UV = newUV,
-            };
-
-            Envelope? envelopePtr = vertex.Envelope;
-
-            if (envelopePtr.HasValue)
-            {
-                var envelope = envelopePtr.Value;
-
-                for (int i = 0; i < 3; i++)
-                {
-                    byte bone = envelope.Bones[i];
-                    byte weight = envelope.Weights[i];
-
-                    if (bone == 0xFF)
-                        break;
-
-                    newVertex.NumBones++;
-                    newVertex.Bones[i] = bone;
-                    newVertex.Weights[i] = weight / 255f;
-                }
-            }
-
-            return newVertex;
-        }
+        public byte NumBones;
+        public Dictionary<Bone, byte> Bones;
     }
 
     public class MeshSubset
     {
-        public int FacesIndex;
-        public int FacesLength;
+        public int FacesIndex = 0;
+        public int FacesLength = 0;
 
-        public int VertsIndex;
-        public int VertsLength;
+        public int VertsIndex = 0;
+        public int VertsLength = 0;
 
-        public int NumBones;
+        public int NumBones = 0;
         public ushort[] BoneIndices;
+
+        public override string ToString()
+        {
+            return string.Join(", ", BoneIndices.Take(NumBones));
+        }
     }
 
     public struct Envelope
@@ -91,49 +51,31 @@ namespace Source2Roblox.Geometry
 
     public class RobloxMesh
     {
-        public uint Version;
-        public ushort NumMeshes = 0;
+        public int NumFaces => Faces.Count;
+        public readonly List<int[]> Faces = new List<int[]>();
 
-        public int NumVerts = 0;
+        public ushort NumSubsets => (ushort)Subsets.Count;
+        public readonly List<MeshSubset> Subsets = new List<MeshSubset>();
+    }
+
+    public class RobloxMeshFile
+    {
         public List<RobloxVertex> Verts = new List<RobloxVertex>();
-
-        public int NumFaces = 0;
-        public List<int[]> Faces = new List<int[]>();
-
-        public ushort NumLODs;
-        public List<uint> LODs;
-
-        public uint NumBones = 0;
-        public List<Bone> Bones;
-
-        public ushort NumSubsets = 0;
-        public List<MeshSubset> Subsets;
-
-        public int NameTableSize = 0;
-        public byte[] NameTable;
-
-        public bool HasLODs => (Version >= 3);
-        public bool HasDeformation => (Version >= 4);
-        public bool HasVertexColors { get; private set; }
-
-        private static void LoadGeometry_Ascii(StringReader reader, RobloxMesh mesh)
+        public List<RobloxMesh> Meshes = new List<RobloxMesh>();
+        public List<Bone> Bones = new List<Bone>();
+        
+        private void LoadGeometry_Ascii(StringReader reader)
         {
             string header = reader.ReadLine();
-            mesh.NumMeshes = 1;
-
+            
             if (!header.StartsWith("version 1"))
                 throw new Exception("Expected version 1 header, got: " + header);
 
             string version = header.Substring(8);
             float vertScale = (version == "1.00" ? 0.5f : 1);
 
-            if (int.TryParse(reader.ReadLine(), out mesh.NumFaces))
-                mesh.NumVerts = mesh.NumFaces * 3;
-            else
+            if (!int.TryParse(reader.ReadLine(), out int numFaces))
                 throw new Exception("Expected 2nd line to be the polygon count.");
-
-            mesh.Faces = new List<int[]>();
-            mesh.Verts = new List<RobloxVertex>();
 
             string polyBuffer = reader.ReadLine();
             MatchCollection matches = Regex.Matches(polyBuffer, @"\[(.*?)\]");
@@ -142,7 +84,11 @@ namespace Source2Roblox.Geometry
             int index = 0;
             int target = 0;
 
+            int numVerts = numFaces * 3;
             var vertex = new RobloxVertex();
+
+            var mesh = new RobloxMesh();
+            Meshes.Add(mesh);
 
             foreach (Match m in matches)
             {
@@ -163,7 +109,7 @@ namespace Source2Roblox.Geometry
 
                 if (target == 0)
                 {
-                    mesh.Verts.Add(vertex);
+                    Verts.Add(vertex);
                     vertex = new RobloxVertex();
 
                     if (index % 3 == 0)
@@ -176,58 +122,62 @@ namespace Source2Roblox.Geometry
             }
         }
 
-        private static void LoadGeometry_Binary(BinaryReader reader, RobloxMesh mesh)
+        private void LoadGeometry_Binary(BinaryReader reader)
         {
-            _ = reader.ReadBytes(13); // version x.xx\n
-            _ = reader.ReadUInt16();  // Header size
+            string versionTag = reader.ReadString(13);
+            reader.Skip(2);
 
-            if (mesh.HasDeformation)
+            if (!int.TryParse(versionTag.Substring(8, 1), out int version))
+                throw new Exception("Invalid version!");
+
+            int numMeshes;
+            int numVerts;
+            int numFaces;
+            
+            bool hasColor;
+            int numLODs = 0;
+            int numBones = 0;
+            int numSubsets = 0;
+            int nameTableSize = 0;
+
+            if (version >= 4)
             {
-                mesh.NumMeshes = reader.ReadUInt16();
+                reader.Skip(2);
 
-                mesh.NumVerts = reader.ReadInt32();
-                mesh.NumFaces = reader.ReadInt32();
+                numVerts = reader.ReadInt32();
+                numFaces = reader.ReadInt32();
 
-                mesh.NumLODs = reader.ReadUInt16();
-                mesh.NumBones = reader.ReadUInt16();
+                numLODs = reader.ReadUInt16();
+                numBones = reader.ReadUInt16();
 
-                mesh.NameTableSize = reader.ReadInt32();
-                mesh.NumSubsets = reader.ReadUInt16();
+                nameTableSize = reader.ReadInt32();
+                numSubsets = reader.ReadUInt16();
 
                 reader.Skip(2);
-                mesh.HasVertexColors = true;
+                hasColor = true;
             }
             else
             {
-                var sizeof_Vertex = reader.ReadByte();
-                mesh.HasVertexColors = sizeof_Vertex > 36;
+                var vertSize = reader.ReadByte();
+                hasColor = (vertSize > 36);
                 reader.Skip(1);
 
-                if (mesh.HasLODs)
+                if (version >= 3)
                 {
                     reader.Skip(2);
-                    mesh.NumLODs = reader.ReadUInt16();
+                    numLODs = reader.ReadUInt16();
                 }
 
-                if (mesh.NumLODs > 0)
-                    mesh.NumMeshes = (ushort)(mesh.NumLODs - 1);
-                else
-                    mesh.NumMeshes = 1;
-
-                mesh.NumVerts = reader.ReadInt32();
-                mesh.NumFaces = reader.ReadInt32();
-
-                mesh.NameTable = new byte[0];
+                numVerts = reader.ReadInt32();
+                numFaces = reader.ReadInt32();
             }
 
-            mesh.LODs = new List<uint>();
-            mesh.Bones = new List<Bone>();
-            mesh.Faces = new List<int[]>();
-            mesh.Verts = new List<RobloxVertex>();
-            mesh.Subsets = new List<MeshSubset>();
+            var faces = new List<int[]>();
+            var subsets = new List<MeshSubset>();
+            var envelopes = new List<Envelope>();
 
             // Read Vertices
-            for (int i = 0; i < mesh.NumVerts; i++)
+            for (int i = 0; i < numVerts; i++)
             {
                 var vert = new RobloxVertex()
                 {
@@ -235,159 +185,204 @@ namespace Source2Roblox.Geometry
                     Normal = reader.ReadVector3(),
 
                     UV = reader.ReadVector2(),
-                    Tangent = reader.ReadUInt32()
+                    Tangent = reader.ReadInt32()
                 };
 
-                Color? color = null;
-
-                if (mesh.HasVertexColors)
+                if (hasColor)
                 {
                     int rgba = reader.ReadInt32();
-                    color = Color.FromArgb(rgba << 24 | rgba >> 8);
+                    vert.Color = Color.FromArgb(rgba << 24 | rgba >> 8);
                 }
 
-                vert.Color = color;
-                mesh.Verts.Add(vert);
+                Verts.Add(vert);
             }
 
-            if (mesh.HasDeformation && mesh.NumBones > 0)
+            if (numBones > 0)
             {
                 // Read Envelopes
-                for (int i = 0; i < mesh.NumVerts; i++)
+                for (int i = 0; i < numVerts; i++)
                 {
-                    var vert = mesh.Verts[i];
-
                     var envelope = new Envelope()
                     {
                         Bones = reader.ReadBytes(4),
                         Weights = reader.ReadBytes(4)
                     };
 
-                    vert.Envelope = envelope;
+                    envelopes.Add(envelope);
                 }
             }
 
             // Read Faces
-            for (int i = 0; i < mesh.NumFaces; i++)
+            for (int i = 0; i < numFaces; i++)
             {
                 var face = new int[3];
 
                 for (int f = 0; f < 3; f++)
                     face[f] = reader.ReadInt32();
 
-                mesh.Faces.Add(face);
+                faces.Add(face);
             }
 
-            if (mesh.HasLODs && mesh.NumLODs > 0)
+            // Read LOD ranges
+            var lodStride = new List<int>();
+
+            if (numLODs > 0)
             {
-                // Read LOD ranges
-                for (int i = 0; i < mesh.NumLODs; i++)
+                for (int i = 0; i < numLODs; i++)
                 {
-                    uint lod = reader.ReadUInt32();
-                    mesh.LODs.Add(lod);
+                    int lod = reader.ReadInt32();
+                    lodStride.Add(lod);
                 }
             }
 
+            // Read Bones
             var nameIndices = new Dictionary<Bone, int>();
-            var parentIds = new Dictionary<Bone, ushort>();
 
-            if (mesh.HasDeformation)
+            for (int i = 0; i < numBones; i++)
             {
-                // Read Bones
-                for (int i = 0; i < mesh.NumBones; i++)
+                float[] cf = new float[12];
+                var bone = new Bone();
+
+                var nameIndex = reader.ReadInt32();
+                int parentId = reader.ReadUInt16();
+
+                if (parentId != 0xFFFF)
+                    bone.Parent = Bones[parentId];
+
+                nameIndices[bone] = nameIndex;
+                reader.Skip(6);
+
+                for (int m = 0; m < 12; m++)
                 {
-                    float[] cf = new float[12];
-                    var bone = new Bone();
-
-                    nameIndices[bone] = reader.ReadInt32();
-                    parentIds[bone] = reader.ReadUInt16();
-
-                    // LOD Parent (ignored for now)
-                    reader.Skip(2);
-
-                    float culling = reader.ReadSingle();
-                    bone.SetAttribute("Culling", culling);
-
-                    for (int m = 0; m < 12; m++)
-                    {
-                        int index = (m + 3) % 12;
-                        cf[index] = reader.ReadSingle();
-                    }
-
-                    bone.CFrame = new CFrame(cf);
-                    mesh.Bones.Add(bone);
-                    reader.Skip(4);
+                    int index = (m + 3) % 12;
+                    cf[index] = reader.ReadSingle();
                 }
 
-                // Read Bone Names & Parents
-                var nameTable = reader.ReadBytes(mesh.NameTableSize);
-                mesh.NameTable = nameTable;
+                bone.CFrame = new CFrame(cf);
+                Bones.Add(bone);
 
-                foreach (Bone bone in mesh.Bones)
+                if (bone.Parent is Bone parent)
                 {
-                    int index = nameIndices[bone];
-                    int parentId = parentIds[bone];
-                    var buffer = new List<byte>();
+                    var parentCF = parent.CFrame;
+                    bone.CFrame = parentCF.ToObjectSpace(bone.CFrame);
+                }
+            }
 
-                    while (true)
+            // Read Name Table
+            var nameBuffer = reader.ReadBytes(nameTableSize);
+
+            using (var nameTable = new MemoryStream(nameBuffer))
+            using (var nameReader = new BinaryReader(nameTable))
+            {
+                foreach (Bone bone in Bones)
+                {
+                    nameTable.Position = nameIndices[bone];
+                    bone.Name = nameReader.ReadString(null);
+                }
+            }
+                
+            // Read Mesh Subsets
+            for (ushort set = 0; set < numSubsets; set++)
+            {
+                var subset = new MeshSubset()
+                {
+                    FacesIndex = reader.ReadInt32(),
+                    FacesLength = reader.ReadInt32(),
+
+                    VertsIndex = reader.ReadInt32(),
+                    VertsLength = reader.ReadInt32(),
+
+                    NumBones = reader.ReadInt32(),
+                    BoneIndices = new ushort[26]
+                };
+
+                for (int i = 0; i < 26; i++)
+                    subset.BoneIndices[i] = reader.ReadUInt16();
+
+                for (int i = 0; i < subset.VertsLength; i++)
+                {
+                    var vertex = Verts[i];
+                    var envelope = envelopes[i];
+                    var boneWeights = vertex.Bones;
+
+                    if (boneWeights == null)
                     {
-                        byte next = nameTable[index];
-
-                        if (next > 0)
-                            index++;
-                        else
-                            break;
-
-                        buffer.Add(next);
+                        boneWeights = new Dictionary<Bone, byte>();
+                        vertex.Bones = boneWeights;
                     }
 
-                    var result = buffer.ToArray();
-                    bone.Name = Encoding.UTF8.GetString(result);
-
-                    if (parentId >= 0)
+                    for (int j = 0; j < 4; j++)
                     {
-                        var parent = mesh.Bones[parentId];
-                        bone.Parent = parent;
+                        int setIndex = envelope.Bones[j];
+                        int boneIndex = subset.BoneIndices[setIndex];
+
+                        if (boneIndex == 0xFFFF)
+                            continue;
+
+                        Bone bone = Bones[boneIndex];
+                        byte weight = envelope.Weights[j];
+
+                        if (weight > 0)
+                        {
+                            boneWeights[bone] = weight;
+                            vertex.NumBones++;
+                        }
                     }
                 }
 
-                // Read Subsets
-                for (int p = 0; p < mesh.NumSubsets; p++)
+                subsets.Add(subset);
+            }
+
+            // Create meshes from the LOD strides.
+            int subsetAt = 0;
+            
+            for (int i = 1; i < numLODs; i++)
+            {
+                int facesEnd = lodStride[i];
+                int facesBegin = lodStride[i - 1];
+
+                if (facesEnd == 0)
+                    facesEnd = numFaces;
+
+                var faceSet = faces
+                    .Skip(facesBegin)
+                    .Take(facesEnd - facesBegin);
+
+                var mesh = new RobloxMesh();
+                mesh.Faces.AddRange(faceSet);
+
+                while (subsetAt < numSubsets)
                 {
-                    var subset = new MeshSubset()
-                    {
-                        FacesIndex = reader.ReadInt32(),
-                        FacesLength = reader.ReadInt32(),
+                    var subset = subsets[subsetAt];
 
-                        VertsIndex = reader.ReadInt32(),
-                        VertsLength = reader.ReadInt32(),
+                    if (subset.FacesIndex >= facesEnd)
+                        break;
 
-                        NumBones = reader.ReadInt32(),
-                        BoneIndices = new ushort[26]
-                    };
-
-                    for (int i = 0; i < 26; i++)
-                        subset.BoneIndices[i] = reader.ReadUInt16();
-
+                    subset.FacesIndex -= facesBegin;
                     mesh.Subsets.Add(subset);
+                    subsetAt++;
                 }
+
+                Meshes.Add(mesh);
             }
         }
 
         public void SaveV1(Stream stream)
         {
+            var mesh = Meshes.First();
+
             using (StringWriter writer = new StringWriter())
             {
                 writer.WriteLine("version 1.00");
-                writer.WriteLine(NumFaces);
+                writer.WriteLine(mesh.NumFaces);
 
-                for (int i = 0; i < NumFaces; i++)
+                for (int i = 0; i < mesh.NumFaces; i++)
                 {
-                    var face = Faces[i];
+                    var face = mesh.Faces[i];
 
                     for (int j = 0; j < 3; j++)
                     {
-                        var index = (int)face[j];
+                        var index = face[j];
                         var vert = Verts[index];
 
                         writer.Write('[');
@@ -406,55 +401,175 @@ namespace Source2Roblox.Geometry
                     }
                 }
 
-                using (BinaryWriter bin = new BinaryWriter(stream))
+                using (var bin = new BinaryWriter(stream))
                 {
                     string file = writer.ToString();
-                    byte[] mesh = Encoding.ASCII.GetBytes(file);
-                    stream.Write(mesh, 0, mesh.Length);
+                    byte[] content = Encoding.ASCII.GetBytes(file);
+                    bin.Write(content);
                 }
             }
         }
 
         public void Save(Stream stream)
         {
-            ushort HeaderSize = 12;
-            Version = 2;
+            ushort headerSize = 12;
+            int version = 2;
 
             const byte VertSize = 40;
             const byte FaceSize = 12;
             const ushort LODSize = 4;
 
-            if (NumLODs > 0)
+            if (Meshes.Count > 1)
             {
-                Version = 3;
-                HeaderSize = 16;
+                version = 3;
+                headerSize = 16;
             }
 
-            byte[] VersionHeader = Encoding.UTF8.GetBytes($"version {Version}.00\n");
-            stream.SetLength(0);
-            stream.Position = 0;
+            var boneInWorld = new Dictionary<Bone, CFrame>();
+            var boneCulling = new Dictionary<Bone, float>();
+            var nameTable = new Dictionary<string, int>();
 
-            using (BinaryWriter writer = new BinaryWriter(stream))
+            var numBones = (uint)(Bones?.Count ?? 0);
+            var rawNameTable = new byte[0];
+
+            if (numBones > 0)
             {
-                writer.Write(VersionHeader);
-                writer.Write(HeaderSize);
+                version = 4;
+                headerSize = 24;
 
-                writer.Write(VertSize);
-                writer.Write(FaceSize);
-
-                if (NumLODs > 0)
+                using (var nameBuffer = new MemoryStream())
+                using (var nameWriter = new BinaryWriter(nameBuffer))
                 {
-                    writer.Write(LODSize);
-                    writer.Write(NumLODs);
+                    var boneNames = Bones
+                        .Select(bone => bone.Name)
+                        .Distinct()
+                        .ToList();
+
+                    foreach (var name in boneNames)
+                    {
+                        var utf8 = Encoding.UTF8.GetBytes(name);
+                        nameTable[name] = (int)nameBuffer.Position;
+
+                        nameWriter.Write(utf8);
+                        nameWriter.Write((byte)0);
+                    }
+
+                    rawNameTable = nameBuffer.ToArray();
                 }
 
-                writer.Write(NumVerts);
-                writer.Write(NumFaces);
-
-                for (int i = 0; i < NumVerts; i++)
+                foreach (var bone in Bones)
                 {
-                    RobloxVertex vertex = Verts[i];
+                    var parent = bone.Parent;
+                    CFrame parentCF = null;
 
+                    if (parent is Bone otherBone)
+                        boneInWorld.TryGetValue(otherBone, out parentCF);
+                    
+                    if (parentCF == null)
+                        parentCF = new CFrame();
+
+                    var cf = parentCF * bone.CFrame;
+                    boneInWorld[bone] = cf;
+                }
+
+                for (byte i = 0; i < Bones.Count; i++)
+                {
+                    var bone = Bones[i];
+                    var cf = boneInWorld[bone];
+
+                    var origin = cf.Position;
+                    var bestDist = -1f;
+
+                    foreach (var vert in Verts)
+                    {
+                        var bones = vert.Bones;
+                        Debug.Assert(bones != null);
+
+                        if (!bones.ContainsKey(bone))
+                            continue;
+
+                        var pos = vert.Position;
+                        var dist = (pos - origin).Magnitude;
+                        bestDist = Math.Max(bestDist, dist);
+                    }
+
+                    boneCulling[bone] = bestDist;
+                }
+            }
+
+            var lods = new List<int>();
+            var faces = new List<int[]>();
+
+            var subsets = new List<MeshSubset>();
+            var envelopes = new List<Envelope>();
+
+            byte[] versionHeader = Encoding.UTF8.GetBytes($"version {version}.00\n");
+            stream.Position = 0;
+            stream.SetLength(0);
+            lods.Add(0);
+
+            if (Meshes.Count < 2)
+                lods.Add(0);
+
+            foreach (var mesh in Meshes)
+            {
+                int facesBegin = faces.Count;
+
+                foreach (var face in faces)
+                {
+                    var newFace = new int[3];
+
+                    for (int i = 0; i < 3; i++)
+                        newFace[i] = facesBegin + face[i];
+
+                    faces.Add(newFace);
+                }
+
+                var allIndices = faces.SelectMany(face => face);
+                var vertsBegin = allIndices.Min();
+                var vertsEnd = allIndices.Max();
+
+                if (Meshes.Count < 2)
+                    continue;
+
+                lods.Add(faces.Count);
+            }
+
+            using (var writer = new BinaryWriter(stream))
+            {
+                writer.Write(versionHeader);
+                writer.Write(headerSize);
+
+                if (version > 4)
+                {
+                    writer.Write((ushort)Meshes.Count);
+
+                    writer.Write(Verts.Count);
+                    writer.Write(faces.Count);
+
+                    writer.Write((ushort)lods.Count);
+                    writer.Write((ushort)Bones.Count);
+
+                    writer.Write(rawNameTable.Length);
+                    writer.Write(subsets.Count);
+                }
+                else
+                {
+                    writer.Write(VertSize);
+                    writer.Write(FaceSize);
+
+                    if (Meshes.Count > 1)
+                    {
+                        writer.Write(LODSize);
+                        writer.Write(lods.Count);
+                    }
+
+                    writer.Write(Verts.Count);
+                    writer.Write(faces.Count);
+                }
+                
+                foreach (var vertex in Verts)
+                {
                     Vector3 pos = vertex.Position;
                     writer.Write(pos.X);
                     writer.Write(pos.Y);
@@ -470,51 +585,91 @@ namespace Source2Roblox.Geometry
                     writer.Write(uv.Y);
 
                     Tangent tangent = vertex.Tangent;
-                    writer.Write(tangent.ToUInt32());
-                    
-                    if (vertex.Color.HasValue)
-                    {
-                        var color = vertex.Color.Value;
-                        int argb = color.ToArgb();
+                    writer.Write(tangent.ToInt32());
 
-                        int rgba = (argb << 8 | argb >> 24);
-                        writer.Write(rgba);
-                    }
-                    else
+                    Color? color = vertex.Color;
+                    int rgba = -1;
+
+                    if (color.HasValue)
                     {
-                        writer.Write(-1);
+                        int argb = color.Value.ToArgb();
+                        rgba = argb << 8 | argb >> 24;
+                    }
+
+                    writer.Write(rgba);
+                }
+
+                if (numBones > 0)
+                {
+                    foreach (var envelope in envelopes)
+                    {
+                        writer.Write(envelope.Bones);
+                        writer.Write(envelope.Weights);
                     }
                 }
 
-                for (int i = 0; i < NumFaces; i++)
-                {
-                    var faces = Faces[i];
+                foreach (var face in faces)
+                    foreach (var index in face)
+                        writer.Write(index);
 
-                    for (int f = 0; f < 3; f++)
-                    {
-                        int face = faces[f];
-                        writer.Write(face);
-                    }
-                }
-
-                for (int i = 0; i < NumLODs; i++)
-                {
-                    uint lod = LODs[i];
+                foreach (var lod in lods)
                     writer.Write(lod);
+
+                if (numBones > 0)
+                {
+                    foreach (var bone in Bones)
+                    {
+                        int nameIndex = nameTable[bone.Name];
+                        writer.Write(nameIndex);
+
+                        ushort parentIndex = (ushort)Bones.IndexOf(bone);
+                        writer.Write(parentIndex);
+                        writer.Write(parentIndex);
+
+                        var culling = boneCulling[bone];
+                        writer.Write(culling);
+
+                        var cf = boneInWorld[bone];
+                        var components = cf.GetComponents();
+
+                        for (int i = 0; i < 12; i++)
+                        {
+                            int index = (i + 3) % 12;
+                            writer.Write(components[index]);
+                        }
+                    }
+
+                    writer.Write(rawNameTable);
+
+                    foreach (var subset in subsets)
+                    {
+                        writer.Write(subset.FacesIndex);
+                        writer.Write(subset.FacesLength);
+
+                        writer.Write(subset.VertsIndex);
+                        writer.Write(subset.VertsLength);
+
+                        for (int i = 0; i < 26; i++)
+                        {
+                            var index = subset.BoneIndices[i];
+                            writer.Write(index);
+                        }
+                    }
                 }
             }
         }
 
-        public static RobloxMesh FromObjFile(string filePath)
+        public RobloxMeshFile()
+        {
+        }
+
+        public static RobloxMeshFile FromObjFile(string filePath)
         {
             string contents = File.ReadAllText(filePath);
-
-            var mesh = new RobloxMesh()
-            {
-                Version = 3,
-                Faces = new List<int[]>(),
-                Verts = new List<RobloxVertex>()
-            };
+            var file = new RobloxMeshFile();
+            
+            var mesh = new RobloxMesh();
+            file.Meshes.Add(mesh);
 
             var uvTable = new List<Vector2>();
             var posTable = new List<Vector3>();
@@ -595,7 +750,7 @@ namespace Source2Roblox.Geometry
 
                                 if (!vertexLookup.ContainsKey(key))
                                 {
-                                    int faceId = mesh.NumVerts++;
+                                    int faceId = file.Verts.Count;
                                     vertexLookup.Add(key, faceId);
 
                                     var vert = new RobloxVertex()
@@ -605,25 +760,23 @@ namespace Source2Roblox.Geometry
                                         UV = uvTable[uvId]
                                     };
 
-                                    mesh.Verts.Add(vert);
+                                    file.Verts.Add(vert);
                                 }
 
                                 face[i] = vertexLookup[key];
                             }
 
                             mesh.Faces.Add(face);
-                            mesh.NumFaces++;
-
                             break;
                         }
                     }
                 }
             }
 
-            return mesh;
+            return file;
         }
 
-        public static RobloxMesh FromBuffer(byte[] data)
+        public RobloxMeshFile(byte[] data)
         {
             string file = Encoding.ASCII.GetString(data);
 
@@ -631,13 +784,12 @@ namespace Source2Roblox.Geometry
                 throw new Exception("Invalid .mesh header!");
 
             string versionStr = file.Substring(8, 4);
-            double version = Format.ParseDouble(versionStr);
-            var mesh = new RobloxMesh() { Version = (uint)version };
+            uint version = (uint)Format.ParseDouble(versionStr);
 
-            if (mesh.Version == 1)
+            if (version == 1)
             {
                 var buffer = new StringReader(file);
-                LoadGeometry_Ascii(buffer, mesh);
+                LoadGeometry_Ascii(buffer);
 
                 buffer.Dispose();
             }
@@ -646,15 +798,13 @@ namespace Source2Roblox.Geometry
                 var stream = new MemoryStream(data);
 
                 using (var reader = new BinaryReader(stream))
-                    LoadGeometry_Binary(reader, mesh);
+                    LoadGeometry_Binary(reader);
 
                 stream.Dispose();
             }
-
-            return mesh;
         }
 
-        public static RobloxMesh FromStream(Stream stream)
+        public static RobloxMeshFile Open(Stream stream)
         {
             byte[] data;
 
@@ -664,15 +814,15 @@ namespace Source2Roblox.Geometry
                 data = buffer.ToArray();
             }
 
-            return FromBuffer(data);
+            return new RobloxMeshFile(data);
         }
 
-        public static RobloxMesh FromFile(string path)
+        public static RobloxMeshFile Open(string path)
         {
-            RobloxMesh result;
+            RobloxMeshFile result;
 
             using (FileStream meshStream = File.OpenRead(path))
-                result = FromStream(meshStream);
+                result = Open(meshStream);
 
             return result;
         }

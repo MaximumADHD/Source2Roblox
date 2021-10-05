@@ -71,6 +71,16 @@ public static class Extensions
         return new Vector3(x, y, z);
     }
 
+    public static Quaternion ReadQuaternion(this BinaryReader reader)
+    {
+        float x = reader.ReadSingle(),
+              y = reader.ReadSingle(),
+              z = reader.ReadSingle(),
+              w = reader.ReadSingle();
+
+        return new Quaternion(x, y, z, w);
+    }
+
     public static Vector2 ReadVector2(this BinaryReader reader)
     {
         float x = reader.ReadSingle(),

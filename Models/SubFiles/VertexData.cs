@@ -93,7 +93,7 @@ namespace Source2Roblox.Models
                     envelope.Weights[i] = (byte)Math.Max(0, Math.Min(1, weight) * 255);
                 }
 
-                newVertex.Envelope = envelope;
+                // todo
             }
 
             return newVertex;

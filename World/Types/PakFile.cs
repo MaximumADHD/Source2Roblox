@@ -42,13 +42,13 @@ namespace Source2Roblox.World.Types
                 continue;
             }
 
+            /*
             ushort numEntries = reader.ReadUInt16();
             reader.Skip(6);
 
             uint dirStart = reader.ReadUInt32();
             stream.Position = dirStart;
 
-            /*
             for (int i = 0; i < numEntries; i++)
             {
                 var header = reader.ReadString(4);
