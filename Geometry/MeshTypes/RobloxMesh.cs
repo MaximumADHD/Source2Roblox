@@ -78,7 +78,7 @@ namespace Source2Roblox.Geometry
                 throw new Exception("Expected 2nd line to be the polygon count.");
 
             string polyBuffer = reader.ReadLine();
-            MatchCollection matches = Regex.Matches(polyBuffer, @"\[(.*?)\]");
+            var matches = Regex.Matches(polyBuffer, @"\[(.*?)\]");
 
             int face = 0;
             int index = 0;
@@ -130,11 +130,10 @@ namespace Source2Roblox.Geometry
             if (!int.TryParse(versionTag.Substring(8, 1), out int version))
                 throw new Exception("Invalid version!");
 
-            int numMeshes;
             int numVerts;
             int numFaces;
-            
             bool hasColor;
+
             int numLODs = 0;
             int numBones = 0;
             int numSubsets = 0;
@@ -159,7 +158,7 @@ namespace Source2Roblox.Geometry
             else
             {
                 var vertSize = reader.ReadByte();
-                hasColor = (vertSize > 36);
+                hasColor = vertSize > 36;
                 reader.Skip(1);
 
                 if (version >= 3)
@@ -525,16 +524,86 @@ namespace Source2Roblox.Geometry
                     faces.Add(newFace);
                 }
 
-                var allIndices = faces.SelectMany(face => face);
-                var vertsBegin = allIndices.Min();
-                var vertsEnd = allIndices.Max();
-
                 if (Meshes.Count < 2)
                     continue;
 
                 lods.Add(faces.Count);
             }
 
+            if (numBones > 0)
+            {
+                // Generate subsets & envelopes
+                int indexOffset = 0;
+
+                foreach (var mesh in Meshes)
+                {
+                    var subset = new MeshSubset();
+                    subsets.Add(subset);
+
+                    var bones = new List<Bone>();
+                    int setIndex = subsets.IndexOf(subset);
+
+                    for (int i = 0; i < mesh.NumFaces; i++)
+                    {
+                        var currFace = mesh.Faces[i];
+
+                        var newBones = currFace
+                            .Select(index => Verts[index])
+                            .SelectMany(vert => vert.Bones.Keys)
+                            .Where(bone => !bones.Contains(bone))
+                            .Distinct()
+                            .ToList();
+
+                        bool shouldSplit = false;
+
+                        if (bones.Count + newBones.Count > 26)
+                            shouldSplit = true;
+
+                        if (i == mesh.NumFaces - 1)
+                            shouldSplit = true;
+
+                        if (shouldSplit)
+                        {
+                            int facesIndex = subset.FacesIndex;
+                            int facesLength = i - facesIndex;
+
+                            var allIndices = mesh.Faces
+                                .Skip(facesIndex)
+                                .Take(facesLength)
+                                .SelectMany(face => face)
+                                .Select(face => face + indexOffset)
+                                .Distinct();
+
+                            var vertsIndex = allIndices.Min();
+                            var vertsLength = allIndices.Max() - vertsIndex;
+
+                            subset.NumBones = bones.Count;
+                            subset.FacesLength = facesLength;
+
+                            subset.VertsIndex = vertsIndex;
+                            subset.VertsLength = vertsLength;
+
+                            for (int j = 0; j < 26; j++)
+                            {
+                                if (j >= bones.Count)
+                                {
+                                    subset.BoneIndices[j] = 0xFFFF;
+                                    continue;
+                                }
+
+                                var bone = bones[j];
+                                int boneIndex = Bones.IndexOf(bone);
+
+                                Debug.Assert(boneIndex >= 0 && boneIndex <= 0xFFFF);
+                                subset.BoneIndices[j] = (ushort)boneIndex;
+                            }
+                        }
+                    }
+
+                    
+                }
+            }
+            
             using (var writer = new BinaryWriter(stream))
             {
                 writer.Write(versionHeader);
@@ -551,7 +620,11 @@ namespace Source2Roblox.Geometry
                     writer.Write((ushort)Bones.Count);
 
                     writer.Write(rawNameTable.Length);
-                    writer.Write(subsets.Count);
+                    writer.Write((ushort)subsets.Count);
+
+                    // byte NumHighQualityLODs
+                    // byte PaddingAlwaysZero
+                    writer.Write((ushort)1); 
                 }
                 else
                 {
@@ -778,19 +851,20 @@ namespace Source2Roblox.Geometry
 
         public RobloxMeshFile(byte[] data)
         {
-            string file = Encoding.ASCII.GetString(data);
+            string header = Encoding.ASCII.GetString(data, 0, 13);
 
-            if (!file.StartsWith("version "))
+            if (!header.StartsWith("version "))
                 throw new Exception("Invalid .mesh header!");
 
-            string versionStr = file.Substring(8, 4);
+            string versionStr = header.Substring(8, 4);
             uint version = (uint)Format.ParseDouble(versionStr);
 
             if (version == 1)
             {
+                string file = Encoding.ASCII.GetString(data);
                 var buffer = new StringReader(file);
-                LoadGeometry_Ascii(buffer);
 
+                LoadGeometry_Ascii(buffer);
                 buffer.Dispose();
             }
             else
