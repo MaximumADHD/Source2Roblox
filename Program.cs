@@ -94,6 +94,7 @@ namespace Source2Roblox
                 var save = new MemoryStream();
                 load.Save(save);
 
+                var reopen = new RobloxMeshFile(save.ToArray());
                 Debugger.Break();
             }
 
