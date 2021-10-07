@@ -21,7 +21,7 @@ namespace Source2Roblox.Geometry
         public Vector2 UV = new Vector2();
         public Tangent Tangent = new Tangent(0, 0, -1, 1);
 
-        public Color? Color;
+        public Color Color;
         public byte NumBones;
         public Dictionary<Bone, byte> Bones;
     }
@@ -37,9 +37,20 @@ namespace Source2Roblox.Geometry
         public int NumBones = 0;
         public ushort[] BoneIndices = new ushort[26];
 
+        public string Debug
+        {
+            get
+            {
+                var faces = $"{FacesIndex} - {FacesIndex + FacesLength}";
+                var verts = $"{VertsIndex} - {VertsIndex + VertsLength}";
+                var bones = string.Join(", ", BoneIndices.Take(NumBones));
+                return $"[NumBones: {NumBones}] [Faces: {faces}] [Verts: {verts}] [Bones: {bones}]";
+            }
+        }
+
         public override string ToString()
         {
-            return string.Join(", ", BoneIndices.Take(NumBones));
+            return Debug;
         }
     }
 
@@ -70,6 +81,8 @@ namespace Source2Roblox.Geometry
         public List<RobloxVertex> Verts = new List<RobloxVertex>();
         public List<RobloxMesh> Meshes = new List<RobloxMesh>();
         public List<Bone> Bones = new List<Bone>();
+
+        private static List<string> DEBUG_OLD_SUBSETS = new List<string>();
         
         private void LoadGeometry_Ascii(StringReader reader)
         {
@@ -286,8 +299,10 @@ namespace Source2Roblox.Geometry
                     bone.Name = nameReader.ReadString(null);
                 }
             }
-            
+
             // Read Mesh Subsets
+            DEBUG_OLD_SUBSETS.Clear();
+
             for (ushort set = 0; set < numSubsets; set++)
             {
                 var subset = new MeshSubset()
@@ -304,6 +319,9 @@ namespace Source2Roblox.Geometry
 
                 for (int i = 0; i < 26; i++)
                     subset.BoneIndices[i] = reader.ReadUInt16();
+
+                var debug = subset.ToString();
+                DEBUG_OLD_SUBSETS.Add(debug);
 
                 for (int i = 0; i < subset.VertsLength; i++)
                 {
@@ -522,116 +540,115 @@ namespace Source2Roblox.Geometry
             if (Meshes.Count < 2)
                 lods.Add(0);
 
+            var vertLods = new List<int>();
+            vertLods.Add(0);
+
             foreach (var mesh in Meshes)
             {
-                int facesBegin = faces.Count;
+                var vertRange = mesh.Faces
+                    .SelectMany(face => face)
+                    .OrderBy(face => face)
+                    .Distinct();
 
-                foreach (var face in mesh.Faces)
-                {
-                    var newFace = new int[3];
-
-                    for (int i = 0; i < 3; i++)
-                        newFace[i] = facesBegin + face[i];
-
-                    faces.Add(newFace);
-                }
-
-                if (Meshes.Count < 2)
-                    continue;
-
+                vertLods.Add(vertRange.Max() + 1);
+                faces.AddRange(mesh.Faces);
                 lods.Add(faces.Count);
             }
 
             if (numBones > 0)
             {
                 // Generate subsets
-                int lastFaceStride = 0;
+                var subset = new MeshSubset();
+                subsets.Add(subset);
+
+                var bones = new List<Bone>();
+                int vertStart = 0;
                 int faceStart = 0;
+                int nextLod = 1;
 
-                foreach (var mesh in Meshes)
+                for (int i = 0; i < Verts.Count; i++)
                 {
-                    var subset = new MeshSubset() { FacesIndex = lastFaceStride };
-                    subsets.Add(subset);
+                    var vert = Verts[i];
 
-                    var bones = new List<Bone>();
-                    int setIndex = subsets.IndexOf(subset);
-                    int vertStart = 0;
+                    var newBones = vert.Bones.Keys
+                        .Where(bone => !bones.Contains(bone))
+                        .Distinct()
+                        .ToList();
 
-                    for (int i = 0; i < mesh.NumFaces; i++)
+                    bool shouldSplit = false;
+
+                    if (bones.Count + newBones.Count > 26)
+                        shouldSplit = true;
+
+                    if (i + 1 == Verts.Count)
+                        shouldSplit = true;
+
+                    if (i >= vertLods[nextLod])
                     {
-                        var currFace = mesh.Faces[i];
+                        shouldSplit = true;
+                        nextLod++;
+                    }
 
-                        var newBones = currFace
-                            .Select(index => Verts[index])
-                            .SelectMany(vert => vert.Bones.Keys)
-                            .Where(bone => !bones.Contains(bone))
-                            .Distinct()
-                            .ToList();
+                    if (shouldSplit)
+                    {
+                        subset.NumBones = bones.Count;
+                        subset.VertsIndex = vertStart;
+                        subset.VertsLength = i - vertStart;
 
-                        bool shouldSplit = false;
-                        bones.AddRange(newBones);
+                        if (i + 1 == Verts.Count)
+                            subset.VertsLength++;
 
-                        if (bones.Count + newBones.Count > 26)
-                            shouldSplit = true;
-
-                        if (i + 1 == mesh.NumFaces && bones.Count > 0)
-                            shouldSplit = true;
-
-                        if (shouldSplit)
+                        for (int f = faceStart; f < faces.Count; f++)
                         {
-                            int facesIndex = subset.FacesIndex;
-                            int facesLength = lastFaceStride + i - facesIndex;
+                            var hasExternalBone = faces[f]
+                                .Select(index => Verts[index])
+                                .SelectMany(vertex => vertex.Bones.Keys)
+                                .Where(bone => !bones.Contains(bone))
+                                .Any();
 
-                            var allIndices = mesh.Faces
-                                .Skip(facesIndex - lastFaceStride)
-                                .Take(facesLength)
-                                .SelectMany(face => face)
-                                .Distinct();
+                            if (hasExternalBone)
+                                break;
 
-                            var vertsIndex = Math.Max(allIndices.Min(), vertStart);
-                            var vertsLength = allIndices.Max() - vertsIndex + 1;
+                            subset.FacesLength++;
+                        }
 
-                            subset.NumBones = bones.Count;
-                            subset.FacesLength = facesLength;
+                        for (int b = 0; b < 26; b++)
+                        {
+                            ushort boneIndex = 0xFFFF;
 
-                            subset.VertsIndex = vertsIndex;
-                            subset.VertsLength = vertsLength;
-
-                            for (int b = 0; b < 26; b++)
+                            if (b < bones.Count)
                             {
-                                ushort boneIndex = 0xFFFF;
-
-                                if (b < bones.Count)
-                                {
-                                    var bone = bones[b];
-                                    boneIndex = (ushort)Bones.IndexOf(bone);
-                                }
-
-                                subset.BoneIndices[b] = boneIndex;
+                                var bone = bones[b];
+                                boneIndex = (ushort)Bones.IndexOf(bone);
                             }
 
-                            vertStart = subset.VertsIndex + subset.VertsLength;
+                            subset.BoneIndices[b] = boneIndex;
+                        }
 
-                            if (i + 1 < mesh.NumFaces)
+                        vertStart = i;
+                        faceStart = subset.FacesIndex + subset.FacesLength;
+
+                        if (i + 1 < Verts.Count)
+                        {
+                            subset = new MeshSubset()
                             {
-                                faceStart += subset.FacesLength;
-                                
-                                subset = new MeshSubset()
-                                {
-                                    VertsIndex = vertStart,
-                                    FacesIndex = faceStart,
-                                };
+                                VertsIndex = vertStart,
+                                FacesIndex = faceStart,
+                            };
 
-                                subsets.Add(subset);
-                                bones.Clear();
-                            }
+                            subsets.Add(subset);
+                            bones.Clear();
                         }
                     }
 
-                    lastFaceStride += mesh.NumFaces;
+                    bones.AddRange(newBones);
                 }
 
                 // Generate envelopes
+                var newSubsets = subsets
+                    .Select(s => s.ToString())
+                    .ToList();
+
                 var subsetIterator = subsets.GetEnumerator();
                 subsetIterator.MoveNext();
 
@@ -695,7 +712,7 @@ namespace Source2Roblox.Geometry
 
                     // byte NumHighQualityLODs
                     // byte PaddingAlwaysZero
-                    writer.Write((ushort)1); 
+                    writer.Write((ushort)1);
                 }
                 else
                 {
@@ -705,7 +722,7 @@ namespace Source2Roblox.Geometry
                     if (Meshes.Count > 1)
                     {
                         writer.Write(LODSize);
-                        writer.Write(lods.Count);
+                        writer.Write((ushort)lods.Count);
                     }
 
                     writer.Write(Verts.Count);
@@ -732,12 +749,12 @@ namespace Source2Roblox.Geometry
                     writer.Write(tangent.ToInt32());
 
                     Color? color = vertex.Color;
-                    int rgba = -1;
+                    uint rgba = 0xFFFFFFFF;
 
                     if (color.HasValue)
                     {
-                        int argb = color.Value.ToArgb();
-                        rgba = argb << 8 | argb >> 24;
+                        var argb = (uint)color.Value.ToArgb();
+                        rgba = (argb << 8) | (argb >> 24);
                     }
 
                     writer.Write(rgba);

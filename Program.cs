@@ -89,12 +89,12 @@ namespace Source2Roblox
             if (mesh != null)
             {
                 var load = RobloxMeshFile.Open(mesh);
-                Debugger.Break();
+                
+                using (var stream = File.OpenWrite(mesh + "_PATCH"))
+                    load.Save(stream);
 
-                var save = new MemoryStream();
-                load.Save(save);
+                var reopen = RobloxMeshFile.Open(mesh + "_PATCH");
 
-                var reopen = new RobloxMeshFile(save.ToArray());
                 Debugger.Break();
             }
 
