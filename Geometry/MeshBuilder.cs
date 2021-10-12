@@ -440,24 +440,12 @@ namespace Source2Roblox.Geometry
                 if (part == largestPart)
                     continue;
 
-                var weld = new Weld()
+                var weld = new WeldConstraint()
                 {
-                    C0 = largestPart.CFrame.ToObjectSpace(part.CFrame),
                     Part0 = largestPart,
                     Part1 = part,
+                    State = 1,
                 };
-
-                if (meshPart != null && meshPart.HasSkinnedMesh)
-                {
-                    var mesh = meshBinds[meshPart];
-                    var offset = weld.C0.Position;
-
-                    foreach (var vert in mesh.Verts)
-                        vert.Position += offset;
-
-                    meshPart.HasJointOffset = true;
-                    meshPart.JointOffset = -offset;
-                }
 
                 part.Anchored = false;
                 weld.Parent = part;
@@ -1167,9 +1155,9 @@ namespace Source2Roblox.Geometry
                         if (primary == part)
                             continue;
 
-                        var weld = new Weld()
+                        var weld = new WeldConstraint()
                         {
-                            C0 = primary.CFrame.ToObjectSpace(part.CFrame),
+                            State = 1,
                             Part0 = primary,
                             Part1 = part,
                             Parent = part
