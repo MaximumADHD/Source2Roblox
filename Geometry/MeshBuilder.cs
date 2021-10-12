@@ -399,6 +399,26 @@ namespace Source2Roblox.Geometry
                 }
             }
 
+            if (largestPart == null)
+            {
+                // No geometry...?
+                var dummy = new Part()
+                {
+                    CFrame = new CFrame(),
+                    Size = new Vector3(),
+                    CanCollide = false,
+                    CanTouch = false,
+                    CanQuery = false,
+                    Name = modelName,
+                    Transparency = 1,
+                    Anchored = true,
+                    Locked = true,
+                };
+
+                largestPart = dummy;
+                dummy.Parent = exportModel;
+            }
+
             foreach (var bone in bones)
             {
                 if (bone.Parent == null)
