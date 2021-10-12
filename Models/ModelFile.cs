@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-
+using System.Runtime.InteropServices;
+using RobloxFiles.DataTypes;
 using Source2Roblox.FileSystem;
 
 namespace Source2Roblox.Models
@@ -24,6 +25,61 @@ namespace Source2Roblox.Models
         public List<ushort> Indices;
     }
 
+    public class StudioBone
+    {
+        public readonly string Name;
+        public readonly int Parent;
+
+        public readonly Vector3 Position;
+        public readonly Vector3 Rotation;
+
+        public readonly Quaternion Quaternion;
+        public readonly CFrame PoseToBone;
+
+        public readonly Vector3 PositionScale;
+        public readonly Vector3 RotationScale;
+
+        public StudioBone(BinaryReader reader)
+        {
+            var stream = reader.BaseStream;
+            var boneStart = stream.Position;
+
+            int nameIndex = reader.ReadInt32();
+            Parent = reader.ReadInt32();
+
+            // BoneController
+            reader.Skip(24);
+
+            Position = reader.ReadVector3();
+            Quaternion = reader.ReadQuaternion();
+
+            Rotation = reader.ReadVector3();
+            PositionScale = reader.ReadVector3();
+            RotationScale = reader.ReadVector3();
+
+            float R00 = reader.ReadSingle(),
+                  R01 = reader.ReadSingle(),
+                  R02 = reader.ReadSingle(),
+                  X   = reader.ReadSingle();
+
+            float R10 = reader.ReadSingle(),
+                  R11 = reader.ReadSingle(),
+                  R12 = reader.ReadSingle(),
+                  Y   = reader.ReadSingle();
+
+            float R20 = reader.ReadSingle(),
+                  R21 = reader.ReadSingle(),
+                  R22 = reader.ReadSingle(),
+                  Z   = reader.ReadSingle();
+
+            PoseToBone = new CFrame(X, Y, Z, R00, R01, R02, R10, R11, R12, R20, R21, R22);
+            reader.JumpTo(boneStart + nameIndex);
+
+            Name = reader.ReadString(null);
+            reader.JumpTo(boneStart + 0xD8);
+        }
+    }
+
     public class ModelFile
     {
         public readonly GameMount Game;
@@ -33,6 +89,7 @@ namespace Source2Roblox.Models
         public readonly PhysicsData PhysicsData;
         public readonly TriangleData TriangleData;
         public readonly IReadOnlyList<string> Materials;
+        public readonly IReadOnlyList<StudioBone> Bones;
 
         public string Name => Header.Name;
         public ModelFlags Flags => Header.Flags;
@@ -146,6 +203,18 @@ namespace Source2Roblox.Models
             {
                 ushort value = mdlReader.ReadUInt16();
                 skinArray.Add(value);
+            }
+
+            int boneIndex = mdl.BoneIndex;
+            mdlStream.Position = boneIndex;
+
+            var bones = new List<StudioBone>();
+            Bones = bones;
+
+            for (int i = 0; i < mdl.BoneCount; i++)
+            {
+                var bone = new StudioBone(mdlReader);
+                bones.Add(bone);
             }
 
             int vtxNumLODs = vtx.NumLODs;

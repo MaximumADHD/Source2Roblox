@@ -18,7 +18,6 @@ using RobloxFiles;
 using RobloxFiles.Enums;
 using RobloxFiles.DataTypes;
 
-
 namespace Source2Roblox.Geometry
 {
     public static class MeshBuilder
@@ -30,8 +29,9 @@ namespace Source2Roblox.Geometry
         }
 
         private const float DEG_TO_RAD = (float)(Math.PI / 180f);
-        private const string ENV_DARK = "materials/tools/toolsblack.vtf";
-        private const string ENV_LIGHT = "materials/lights/white002.vtf";
+        private const string ENV_DARK = "materials/dev/reflectivity_10b.vtf";
+        private const string ENV_LIGHT = "materials/dev/reflectivity_90b.vtf";
+        private static readonly CFrame BONE_OFFSET = CFrame.Angles(-90f * DEG_TO_RAD, 0, 0);
 
         public static Region3 ComputeAABB(IEnumerable<Vector3> vertices)
         {
@@ -203,7 +203,41 @@ namespace Source2Roblox.Geometry
                 meshBuffers.AddRange(meshes);
             }
 
-            string lastBodyPart = "";
+            var bones = new List<Bone>();
+            var objectSpace = new Dictionary<Bone, CFrame>();
+            
+            foreach (var studioBone in model.Bones)
+            {
+                int parentId = studioBone.Parent;
+                var quat = studioBone.Quaternion;
+
+                var pos = studioBone.Position;
+                pos = new Vector3(pos.X, pos.Z, -pos.Y) / Program.STUDS_TO_VMF;
+
+                var cf = new CFrame(pos)
+                    * BONE_OFFSET
+                    * quat.ToCFrame()
+                    * BONE_OFFSET.Inverse();
+
+                var bone = new Bone()
+                {
+                    Name = studioBone.Name,
+                    CFrame = cf,
+                };
+
+                if (parentId >= 0)
+                {
+                    var parent = bones[parentId];
+                    bone.CFrame = parent.CFrame * cf;
+                    bone.Parent = parent;
+                }
+
+                bones.Add(bone);
+                objectSpace[bone] = cf;
+            }
+
+            var lastBodyPart = "";
+            var meshBinds = new Dictionary<MeshPart, RobloxMeshFile>();
 
             foreach (var meshBuffer in meshBuffers)
             {
@@ -220,22 +254,43 @@ namespace Source2Roblox.Geometry
                 var verts = meshBuffer.Vertices;
                 var indices = meshBuffer.Indices;
 
-                var mesh = new RobloxMesh()
+                string matPath = meshBuffer.MaterialPath;
+
+                if (matPath == "")
+                    matPath = "error.vmt";
+
+                var meshFile = new RobloxMeshFile();
+                meshFile.Bones.AddRange(bones);
+
+                var mesh = new RobloxMesh();
+                meshFile.Meshes.Add(mesh);
+
+                foreach (var studioVert in verts)
                 {
-                    NumVerts = numVerts,
-                    NumFaces = numIndices / 3,
-
-                    Verts = new List<RobloxVertex>(),
-                    Faces = new List<int[]>()
-                };
-
-                mesh.NumVerts = meshBuffer.NumVerts;
-                mesh.NumFaces = meshBuffer.NumIndices / 3;
-
-                foreach (RobloxVertex vert in verts)
-                {
+                    var vert = (RobloxVertex)studioVert;
                     vert.Position -= center;
-                    mesh.Verts.Add(vert);
+
+                    var boneIds = studioVert.Bones;
+                    var weights = studioVert.Weights;
+
+                    byte weightLeft = 255;
+
+                    for (int i = 0; i < vert.NumBones; i++)
+                    {
+                        var boneId = boneIds[i];
+                        var bone = bones[boneId];
+
+                        var weight = weights[i];
+                        var rounded = (byte)(weight * 255f);
+
+                        if (i + 1 == vert.NumBones)
+                            rounded = weightLeft;
+
+                        vert.Bones[bone] = rounded;
+                        weightLeft -= rounded;
+                    }
+
+                    meshFile.Verts.Add(vert);
                 }
 
                 for (int i = 0; i < numIndices; i += 3)
@@ -249,11 +304,6 @@ namespace Source2Roblox.Geometry
 
                     mesh.Faces.Add(face);
                 }
-
-                string matPath = meshBuffer.MaterialPath;
-
-                if (matPath == "")
-                    matPath = "error.vmt";
 
                 var info = new FileInfo(matPath);
                 string name = meshBuffer.BodyPart;
@@ -279,20 +329,6 @@ namespace Source2Roblox.Geometry
                 string bumpPath = vmt.BumpPath;
                 vmt.SaveVTF(bumpPath, rootWorkDir, true);
 
-                string irisPath = vmt.IrisPath;
-                vmt.SaveVTF(irisPath, rootWorkDir, false);
-
-                string meshWorkDir = Path.Combine(rootWorkDir, meshDir);
-                string meshPath = Path.Combine(meshWorkDir, $"{name}.mesh");
-
-                Directory.CreateDirectory(meshWorkDir); 
-
-                using (var stream = File.OpenWrite(meshPath))
-                {
-                    mesh.Save(stream);
-                    Console.WriteLine($"\tWrote {meshPath}");
-                }
-
                 var size = aabb.Size;
 
                 if (size.X <= 0.1f)
@@ -303,108 +339,51 @@ namespace Source2Roblox.Geometry
 
                 if (size.Z <= 0.1f)
                     size = new Vector3(size.X, size.Y, 0.1f);
-
-                if (!string.IsNullOrEmpty(vmt.IrisPath))
+                
+                var meshPart = new MeshPart()
                 {
-                    var part = new Part()
-                    {
-                        CFrame = aabb.CFrame,
-                        Parent = exportModel,
-                        CanCollide = false,
-                        Transparency = 1,
-                        Anchored = true,
-                        Size = size,
-                        Name = name
-                    };
+                    Material = vmt.Material,
+                    CFrame = aabb.CFrame,
+                    DoubleSided = true,
+                    InitialSize = size,
+                    Anchored = true,
+                    Size = size,
+                    Name = name,
+                };
 
-                    var eye = new BillboardGui
-                    {
-                        ExtentsOffsetWorldSpace = new Vector3(0, 0, -1.5f),
-                        Size = new UDim2(.06f, 0, .06f, 0),
-                        LightInfluence = 1.1f,
-                        Adornee = part,
-                        Parent = part,
-                        Name = "Eye"
-                    };
+                if (vmt.Material == Material.Glass && !vmt.NoAlpha)
+                    meshPart.CastShadow = false;
 
-                    var eyeball = new ImageLabel
-                    {
-                        AnchorPoint = new Vector2(.5f, .5f),
-                        Position = new UDim2(.5f, 0, .5f, 0),
-                        Size = new UDim2(2f, 0, 2f, 0),
-                        Name = "Eyeball",
-                        Parent = eye,
-                    };
+                var surface = new SurfaceAppearance() { AlphaMode = noAlpha ? AlphaMode.Overlay : AlphaMode.Transparency };
 
-                    var corner = new UICorner
-                    {
-                        CornerRadius = new UDim(1),
-                        Parent = eyeball
-                    };
+                if (!string.IsNullOrEmpty(diffusePath))
+                    assetManager.BindAssetId(diffusePath, uploadPool, surface, "ColorMap");
 
-                    var iris = new ImageLabel
-                    {
-                        Position = new UDim2(.5f, 0, .5f, 0),
-                        AnchorPoint = new Vector2(.5f, .5f),
-                        Size = new UDim2(1.1f, 0, 1.1f, 0),
-                        BackgroundTransparency = 1,
-                        Name = "Iris",
-                        Parent = eye,
-                        ZIndex = 2,
-                    };
+                if (!string.IsNullOrEmpty(bumpPath))
+                    assetManager.BindAssetId(bumpPath, uploadPool, surface, "NormalMap");
 
-                    assetManager.BindAssetId(diffusePath, uploadPool, eyeball, "Image");
-                    assetManager.BindAssetId(irisPath, uploadPool, iris, "Image");
+                vmt.SaveVTF(ENV_DARK, rootWorkDir);
+                vmt.SaveVTF(ENV_LIGHT, rootWorkDir);
+
+                if (vmt.EnvMap)
+                {
+                    assetManager.BindAssetId(ENV_DARK, uploadPool, surface, "RoughnessMap");
+                    assetManager.BindAssetId(ENV_LIGHT, uploadPool, surface, "MetalnessMap");
                 }
                 else
                 {
-                    var meshPart = new MeshPart()
-                    {
-                        Material = vmt.Material,
-                        CFrame = aabb.CFrame,
-                        DoubleSided = true,
-                        InitialSize = size,
-                        Anchored = true,
-                        Size = size,
-                        Name = name,
-                    };
-
-                    if (vmt.Material == Material.Glass && !vmt.NoAlpha)
-                        meshPart.CastShadow = false;
-
-                    var surface = new SurfaceAppearance() { AlphaMode = noAlpha ? AlphaMode.Overlay : AlphaMode.Transparency };
-
-                    if (!string.IsNullOrEmpty(diffusePath))
-                        assetManager.BindAssetId(diffusePath, uploadPool, surface, "ColorMap");
-
-                    if (!string.IsNullOrEmpty(bumpPath))
-                        assetManager.BindAssetId(bumpPath, uploadPool, surface, "NormalMap");
-
-                    vmt.SaveVTF(ENV_DARK, rootWorkDir);
-                    vmt.SaveVTF(ENV_LIGHT, rootWorkDir);
-
-                    if (vmt.EnvMap)
-                    {
-                        assetManager.BindAssetId(ENV_DARK, uploadPool, surface, "RoughnessMap");
-                        assetManager.BindAssetId(ENV_LIGHT, uploadPool, surface, "MetalnessMap");
-                    }
-                    else
-                    {
-                        assetManager.BindAssetId(ENV_DARK, uploadPool, surface, "MetalnessMap");
-                        assetManager.BindAssetId(ENV_LIGHT, uploadPool, surface, "RoughnessMap");
-                    }
-
-                    surface.Parent = meshPart;
-                    meshPart.Parent = exportModel;
-
-                    assetManager.BindAssetId($"{meshDir}/{name}.mesh", uploadPool, meshPart, "MeshId");
+                    assetManager.BindAssetId(ENV_DARK, uploadPool, surface, "MetalnessMap");
+                    assetManager.BindAssetId(ENV_LIGHT, uploadPool, surface, "RoughnessMap");
                 }
+
+                surface.Parent = meshPart;
+                meshPart.Parent = exportModel;
+                meshBinds[meshPart] = meshFile;
             }
 
-            var uploadTask = Task.WhenAll(uploadPool);
-            uploadTask.Wait();
-
+            string meshWorkDir = Path.Combine(rootWorkDir, meshDir);
             var parts = exportModel.GetChildrenOfType<BasePart>();
+
             BasePart largestPart = null;
             float largestMass = 0;
 
@@ -418,6 +397,80 @@ namespace Source2Roblox.Geometry
                     largestMass = mass;
                     largestPart = part;
                 }
+            }
+
+            foreach (var bone in bones)
+            {
+                if (bone.Parent == null)
+                    bone.Parent = largestPart;
+
+                bone.CFrame -= largestPart.Position;
+            }
+            
+            foreach (var part in parts)
+            {
+                MeshPart meshPart = null;
+
+                if (part is MeshPart)
+                {
+                    meshPart = part as MeshPart;
+                    meshPart.HasSkinnedMesh = bones.Any();
+                }
+
+                if (part == largestPart)
+                    continue;
+
+                var weld = new Weld()
+                {
+                    C0 = largestPart.CFrame.ToObjectSpace(part.CFrame),
+                    Part0 = largestPart,
+                    Part1 = part,
+                };
+
+                if (meshPart != null && meshPart.HasSkinnedMesh)
+                {
+                    var mesh = meshBinds[meshPart];
+                    var offset = weld.C0.Position;
+
+                    foreach (var vert in mesh.Verts)
+                        vert.Position += offset;
+
+                    meshPart.HasJointOffset = true;
+                    meshPart.JointOffset = -offset;
+                }
+
+                part.Anchored = false;
+                weld.Parent = part;
+            }
+
+            foreach (var meshPart in meshBinds.Keys)
+            {
+                var meshFile = meshBinds[meshPart];
+                string name = meshPart.Name;
+
+                string meshPath = Path.Combine(meshWorkDir, $"{name}.mesh");
+                Directory.CreateDirectory(meshWorkDir);
+
+                using (var stream = File.OpenWrite(meshPath))
+                {
+                    meshFile.Save(stream);
+                    Console.WriteLine($"\tWrote {meshPath}");
+                }
+
+                assetManager.BindAssetId($"{meshDir}/{name}.mesh", uploadPool, meshPart, "MeshId");
+            }
+
+            var uploadTask = Task.WhenAll(uploadPool);
+            uploadTask.Wait();
+
+            foreach (var bone in bones)
+            {
+                bone.CFrame = objectSpace[bone];
+
+                if (bone.Parent is Bone parent)
+                    continue;
+
+                bone.CFrame -= largestPart.Position;
             }
 
             string exportPath = Path.Combine(rootWorkDir, modelDir, $"{modelName}.rbxm");
@@ -680,7 +733,10 @@ namespace Source2Roblox.Geometry
                     meshName = $"cluster_{++clusterId}.mesh";
 
                 var meshPath = Path.Combine(mapDir, meshName);
+                var meshFile = new RobloxMeshFile();
+
                 var mesh = new RobloxMesh();
+                meshFile.Meshes.Add(mesh);
 
                 using (var meshStream = File.OpenWrite(meshPath))
                 {
@@ -697,7 +753,7 @@ namespace Source2Roblox.Geometry
                         int firstUV = face.FirstUV,
                             firstNorm = face.FirstNorm,
                             firstVert = face.FirstVert,
-                            vertIndex = mesh.Verts.Count;
+                            vertIndex = meshFile.Verts.Count;
 
                         for (int i = 0; i < numEdges; i++)
                         {
@@ -712,7 +768,7 @@ namespace Source2Roblox.Geometry
                                 UV = uv
                             };
 
-                            mesh.Verts.Add(vert);
+                            meshFile.Verts.Add(vert);
                         }
 
                         if (dispInfo >= 0)
@@ -751,7 +807,7 @@ namespace Source2Roblox.Geometry
                         }
                     }
 
-                    var verts = mesh.Verts
+                    var verts = meshFile.Verts
                         .Select(vert => vert.Position)
                         .ToList();
 
@@ -762,7 +818,7 @@ namespace Source2Roblox.Geometry
                     var origin = cf.Position;
                     var padding = new Vector3();
 
-                    foreach (var vert in mesh.Verts)
+                    foreach (var vert in meshFile.Verts)
                         vert.Position -= origin;
 
                     if (size.X < 0.1f)
@@ -774,12 +830,9 @@ namespace Source2Roblox.Geometry
                     if (size.Z < 0.1f)
                         size = new Vector3(size.X, size.Y, 0.1f);
 
-                    mesh.NumVerts = mesh.Verts.Count;
-                    mesh.NumFaces = mesh.Faces.Count;
+                    meshFile.Save(meshStream);
 
-                    mesh.Save(meshStream);
-
-                    var physicsMesh = new PhysicsMesh(mesh);
+                    var physicsMesh = new PhysicsMesh(meshFile);
                     var physics = physicsMesh.Serialize();
 
                     var meshPart = new MeshPart()

@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System;
+using System.Diagnostics;
+using System.IO;
 using RobloxFiles.DataTypes;
 
 namespace Source2Roblox.Geometry
@@ -30,7 +32,7 @@ namespace Source2Roblox.Geometry
             Sign = sign;
         }
 
-        public Tangent(uint xyzs)
+        public Tangent(int xyzs)
         {
             if (xyzs == 0)
             {
@@ -41,21 +43,21 @@ namespace Source2Roblox.Geometry
             }
             else
             {
-                uint x = xyzs >> 24;
+                int x = xyzs & 0xFF;
                 X = (x - 127) / 127f;
 
-                uint y = (xyzs << 8) >> 24;
+                int y = (xyzs >> 8) & 0xFF;
                 Y = (y - 127) / 127f;
 
-                uint z = (xyzs << 16) >> 24;
+                int z = (xyzs >> 16) & 0xFF;
                 Z = (z - 127) / 127f;
 
-                uint s = (xyzs << 24) >> 24;
+                int s = (xyzs >> 24) & 0xFF;
                 Sign = (s - 127) / 127f;
             }
         }
 
-        public static implicit operator Tangent(uint xyzs)
+        public static implicit operator Tangent(int xyzs)
         {
             return new Tangent(xyzs);
         }
@@ -69,12 +71,12 @@ namespace Source2Roblox.Geometry
             Sign = reader.ReadSingle();
         }
 
-        public uint ToUInt32()
+        public int ToInt32()
         {
-            uint x = (uint)(X * 127f),
-                 y = (uint)(Y * 127f),
-                 z = (uint)(Z * 127f),
-                 s = (uint)(Sign * 127f);
+            int x = (int)(X * 127f),
+                y = (int)(Y * 127f),
+                z = (int)(Z * 127f),
+                s = (int)(Sign * 127f);
 
             return x << 24 | y << 16 | z << 8 | s;
         }

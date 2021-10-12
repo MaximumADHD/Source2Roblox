@@ -332,8 +332,8 @@ namespace Source2Roblox.Geometry
                         }
                     }
 
-                    if (alpha > 127f && vmt.DiffusePaths[1] != null)
-                        vmt.DiffuseIndex = 1;
+                    // if (alpha > 127f && vmt.DiffusePaths[1] != null)
+                    //    vmt.DiffuseIndex = 1;
 
                     // Generate Normals.
                     var normalSamples = new Dictionary<int, Vector3>();

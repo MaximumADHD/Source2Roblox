@@ -35,7 +35,7 @@ namespace Source2Roblox.Upload
         public readonly string RootDir;
         public readonly string RbxAssetDir;
 
-        private readonly SemaphoreSlim UploadSemaphore = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim UploadSemaphore = new SemaphoreSlim(1, 4);
         private readonly Dictionary<string, bool> UploadConsent = new Dictionary<string, bool>();
 
         static AssetManager()
