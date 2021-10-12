@@ -59,7 +59,7 @@ namespace Source2Roblox.World.Types
         public uint? ExtraFlags;
         public float Scale = 1f;
 
-        public StaticProp(BSPFile bsp, GameLump lump, BinaryReader reader)
+        public StaticProp(BSPFile bsp, GameLump lump, BinaryReader reader, long size)
         {
             var version = lump.Version;
             var bspVersion = bsp.Version;
@@ -117,6 +117,17 @@ namespace Source2Roblox.World.Types
                     LightmapResX = reader.ReadUInt16();
                     LightmapResY = reader.ReadUInt16();
                 }
+
+                if (version >= 10)
+                {
+                    uint rgba = reader.ReadUInt32();
+                    uint argb = (rgba << 24) | (rgba >> 8);
+
+                    if (size == 80)
+                        ExtraFlags = reader.ReadUInt32();
+
+                    Color = Color.FromArgb((int)argb);
+                }
             }
 
             if ((Flags & StaticPropFlags.UseLightingOrigin) != StaticPropFlags.None)
@@ -149,9 +160,13 @@ namespace Source2Roblox.World.Types
             var numProps = reader.ReadInt32();
             var props = new StaticProp[numProps];
 
+            var stream = reader.BaseStream;
+            var remaining = stream.Length - stream.Position;
+            var staticPropSize = remaining / numProps;
+
             for (int i = 0; i < numProps; i++)
             {
-                var prop = new StaticProp(bsp, sprp, reader);
+                var prop = new StaticProp(bsp, sprp, reader, staticPropSize);
                 prop.Name = strings[prop.PropType];
                 props[i] = prop;
             }
