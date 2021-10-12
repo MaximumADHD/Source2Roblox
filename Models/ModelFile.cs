@@ -235,8 +235,7 @@ namespace Source2Roblox.Models
                 for (int j = 0; j < numReplaces; j++)
                 {
                     var materialId = vtxReader.ReadUInt16();
-                    Debug.Assert(materialId < materialPaths.Count);
-
+                   
                     int nameOffset = vtxReader.ReadInt32();
                     vtxStream.Position += (nameOffset - 6);
 
@@ -248,7 +247,7 @@ namespace Source2Roblox.Models
 
                     string newPath = oldPath.Replace(oldName, newName);
 
-                    if (GameMount.HasFile(newPath, game))
+                    if (GameMount.HasFile(newPath, game) && materialId < materialPaths.Count)
                         lodMaterials[materialId] = newPath;
                     else
                         Console.WriteLine($"\tMissing replacement material {oldName}->{newName}?");
