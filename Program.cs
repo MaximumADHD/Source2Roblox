@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using Source2Roblox.FileSystem;
 using Source2Roblox.Geometry;
 using Source2Roblox.Models;
@@ -94,6 +95,14 @@ namespace Source2Roblox
                     load.Save(stream);
 
                 var reopen = RobloxMeshFile.Open(mesh + "_PATCH");
+                
+                var oldBones = load.Bones
+                    .Select(bone => bone.CFrame.ToString())
+                    .ToList();
+
+                var newBones = reopen.Bones
+                    .Select(bone => bone.CFrame.ToString())
+                    .ToList();
 
                 Debugger.Break();
             }
