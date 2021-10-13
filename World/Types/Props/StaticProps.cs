@@ -118,12 +118,12 @@ namespace Source2Roblox.World.Types
                     LightmapResY = reader.ReadUInt16();
                 }
 
-                if (version >= 10)
+                if (version >= 10 && size >= 76)
                 {
                     uint rgba = reader.ReadUInt32();
                     uint argb = (rgba << 24) | (rgba >> 8);
 
-                    if (size == 80)
+                    if (size >= 80)
                         ExtraFlags = reader.ReadUInt32();
 
                     Color = Color.FromArgb((int)argb);
