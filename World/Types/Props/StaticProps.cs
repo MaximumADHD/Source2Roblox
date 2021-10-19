@@ -105,7 +105,7 @@ namespace Source2Roblox.World.Types
                     Color = Color.FromArgb(argb);
                 }
 
-                if (version >= 9) DisableX360 = reader.ReadInt32();
+                if (version >= 9)  DisableX360 = reader.ReadInt32();
                 if (version >= 10) ExtraFlags = reader.ReadUInt32();
                 if (version >= 11) Scale = reader.ReadSingle();
             }
@@ -162,15 +162,19 @@ namespace Source2Roblox.World.Types
 
             var stream = reader.BaseStream;
             var remaining = stream.Length - stream.Position;
-            var staticPropSize = remaining / numProps;
 
-            for (int i = 0; i < numProps; i++)
+            if (remaining > 0 && numProps > 0)
             {
-                var prop = new StaticProp(bsp, sprp, reader, staticPropSize);
-                prop.Name = strings[prop.PropType];
-                props[i] = prop;
-            }
+                var staticPropSize = remaining / numProps;
 
+                for (int i = 0; i < numProps; i++)
+                {
+                    var prop = new StaticProp(bsp, sprp, reader, staticPropSize);
+                    prop.Name = strings[prop.PropType];
+                    props[i] = prop;
+                }
+            }
+            
             Props = props.ToList();
             Strings = strings;
             Leaves = leaves;
