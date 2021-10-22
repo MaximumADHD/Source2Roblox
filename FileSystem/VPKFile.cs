@@ -36,14 +36,12 @@ namespace Source2Roblox.FileSystem
                 Console.WriteLine($"\tMounted!");
 
                 Mounted = true;
+                Console.ForegroundColor = ConsoleColor.Gray;
             }
             else
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"\tCould not find file!");
+                Program.LogError("\tCould not find file!");
             }
-
-            Console.ForegroundColor = ConsoleColor.Gray;
         }
         
         public VPKFile(ZipArchive archive)

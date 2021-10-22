@@ -1091,7 +1091,7 @@ namespace Source2Roblox.Geometry
 
                 if (!GameMount.HasFile(modelName, game))
                 {
-                    Console.WriteLine($"Could not find model: {modelName}");
+                    Program.LogError($"Could not find model: {modelName}");
                     continue;
                 }
 

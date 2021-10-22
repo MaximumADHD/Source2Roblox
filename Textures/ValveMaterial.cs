@@ -387,14 +387,44 @@ namespace Source2Roblox.Textures
                     }
                 }
 
-                var vmt = vmtHelper.Deserialize(stream);
-                Shader = vmt.Name.ToLowerInvariant();
+                string newContent = "";
 
-                if (Shader == "LightmappedGeneric")
-                    NoAlpha = true;
+                using (var streamReader = new StreamReader(stream))
+                {
+                    string data = streamReader.ReadToEnd();
 
-                var keys = vmt.ToList();
-                keys.ForEach(ReadEntry);
+                    using (var reader = new StringReader(data))
+                    {
+                        string line;
+
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            int numQuotes = line.Count(ch => ch == '"');
+
+                            if (numQuotes % 2 == 0)
+                            {
+                                newContent += line + "\r\n";
+                                continue;
+                            }
+
+                            Program.LogError($"Ignoring garbage VMT field: '{line}' in {path}");
+                        }
+                    }
+                }
+
+                byte[] buffer = Encoding.UTF8.GetBytes(newContent);
+
+                using (var memStream = new MemoryStream(buffer))
+                {
+                    var vmt = vmtHelper.Deserialize(memStream);
+                    Shader = vmt.Name;
+
+                    if (Shader == "lightmappedgeneric")
+                        NoAlpha = true;
+
+                    var keys = vmt.ToList();
+                    keys.ForEach(ReadEntry);
+                }
             }
         }
     }

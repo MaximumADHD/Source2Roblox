@@ -210,9 +210,7 @@ namespace Source2Roblox.Upload
                                     if (xsrf)
                                         continue;
 
-                                    Console.ForegroundColor = ConsoleColor.Red;
-                                    Console.WriteLine(e.Message);
-                                    Console.ForegroundColor = ConsoleColor.Gray;
+                                    Program.LogError(e.Message);
 
                                     if (!e.Message.ToLowerInvariant().Contains("inappropriate"))
                                     {

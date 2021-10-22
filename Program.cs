@@ -39,6 +39,13 @@ namespace Source2Roblox
             return cleaned;
         }
 
+        public static void LogError(string log)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(log);
+            Console.ForegroundColor = ConsoleColor.Gray;
+        }
+
         [STAThread]
         static void Main(string[] args)
         {

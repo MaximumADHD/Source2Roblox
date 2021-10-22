@@ -105,8 +105,6 @@ namespace Source2Roblox.Geometry
         public List<RobloxMesh> Meshes = new List<RobloxMesh>();
         public List<Bone> Bones = new List<Bone>();
 
-        private static List<string> DEBUG_OLD_SUBSETS = new List<string>();
-        
         private void LoadGeometry_Ascii(StringReader reader)
         {
             string header = reader.ReadLine();
@@ -168,7 +166,7 @@ namespace Source2Roblox.Geometry
         private void LoadGeometry_Binary(BinaryReader reader)
         {
             string versionTag = reader.ReadString(13);
-            var header = reader.ReadUInt16();
+            reader.Skip(2);
 
             if (!int.TryParse(versionTag.Substring(8, 1), out int version))
                 throw new Exception("Invalid version!");
@@ -772,15 +770,10 @@ namespace Source2Roblox.Geometry
                     Tangent tangent = vertex.Tangent;
                     writer.Write(tangent.ToInt32());
 
-                    Color? color = vertex.Color;
-                    uint rgba = 0xFFFFFFFF;
+                    Color color = vertex.Color;
+                    uint argb = (uint)color.ToArgb();
 
-                    if (color.HasValue)
-                    {
-                        var argb = (uint)color.Value.ToArgb();
-                        rgba = (argb << 8) | (argb >> 24);
-                    }
-
+                    uint rgba = (argb << 8) | (argb >> 24);
                     writer.Write(rgba);
                 }
 
