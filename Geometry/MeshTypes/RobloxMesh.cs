@@ -470,7 +470,7 @@ namespace Source2Roblox.Geometry
             var numBones = (uint)(Bones?.Count ?? 0);
             var rawNameTable = new byte[0];
 
-            if (numBones > 0)
+            if (numBones > 1)
             {
                 version = 4;
                 headerSize = 24;
@@ -518,6 +518,11 @@ namespace Source2Roblox.Geometry
 
                     boneCulling[bone] = bestDist;
                 }
+            }
+            else
+            {
+                numBones = 0;
+                Bones.Clear();
             }
 
             var lods = new List<int>();

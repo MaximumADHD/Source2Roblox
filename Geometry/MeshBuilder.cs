@@ -270,24 +270,32 @@ namespace Source2Roblox.Geometry
                     var vert = (RobloxVertex)studioVert;
                     vert.Position -= center;
 
-                    var boneIds = studioVert.Bones;
-                    var weights = studioVert.Weights;
-
-                    byte weightLeft = 255;
-
-                    for (int i = 0; i < vert.NumBones; i++)
+                    if (bones.Count > 1)
                     {
-                        var boneId = boneIds[i];
-                        var bone = bones[boneId];
+                        var boneIds = studioVert.Bones;
+                        var weights = studioVert.Weights;
 
-                        var weight = weights[i];
-                        var rounded = (byte)(weight * 255f);
+                        byte weightLeft = 255;
 
-                        if (i + 1 == vert.NumBones)
-                            rounded = weightLeft;
+                        for (int i = 0; i < vert.NumBones; i++)
+                        {
+                            var boneId = boneIds[i];
+                            var bone = bones[boneId];
 
-                        vert.Bones[bone] = rounded;
-                        weightLeft -= rounded;
+                            var weight = weights[i];
+                            var rounded = (byte)(weight * 255f);
+
+                            if (i + 1 == vert.NumBones)
+                                rounded = weightLeft;
+
+                            vert.Bones[bone] = rounded;
+                            weightLeft -= rounded;
+                        }
+                    }
+                    else
+                    {
+                        vert.NumBones = 0;
+                        vert.Bones.Clear();
                     }
 
                     meshFile.Verts.Add(vert);
@@ -419,14 +427,21 @@ namespace Source2Roblox.Geometry
                 dummy.Parent = exportModel;
             }
 
-            foreach (var bone in bones)
+            if (bones.Count > 1)
             {
-                if (bone.Parent == null)
-                    bone.Parent = largestPart;
+                foreach (var bone in bones)
+                {
+                    if (bone.Parent == null)
+                        bone.Parent = largestPart;
 
-                bone.CFrame -= largestPart.Position;
+                    bone.CFrame -= largestPart.Position;
+                }
             }
-            
+            else
+            {
+                bones.Clear();
+            }
+
             foreach (var part in parts)
             {
                 MeshPart meshPart = null;
@@ -458,6 +473,9 @@ namespace Source2Roblox.Geometry
 
                 string meshPath = Path.Combine(meshWorkDir, $"{name}.mesh");
                 Directory.CreateDirectory(meshWorkDir);
+
+                if (meshFile.Bones.Count < 2)
+                    meshFile.Bones.Clear();
 
                 using (var stream = File.OpenWrite(meshPath))
                 {
@@ -1099,6 +1117,8 @@ namespace Source2Roblox.Geometry
                 skins[skin] = BakeMDL_RBXM(modelFile, skin);
             }
 
+            Console.WriteLine($"Assembling world...");
+
             foreach (var prop in staticProps)
             {
                 int skin = prop.Skin;
@@ -1114,6 +1134,29 @@ namespace Source2Roblox.Geometry
 
                 var model = modelSource.Clone() as Model;
                 var cf = Entity.GetCFrame(origin, angles);
+                var scale = prop.Scale;
+
+                if (scale != 1f)
+                {
+                    foreach (var desc in model.GetDescendants())
+                    {
+                        if (desc is BasePart part)
+                        {
+                            part.Size *= scale;
+                            part.CFrame = part.CFrame.Scale(scale);
+                            part.PivotOffset = part.PivotOffset.Scale(scale);
+                        }
+                        else if (desc is Attachment att)
+                        {
+                            att.CFrame = att.CFrame.Scale(scale);
+                        }
+                        else if (desc is JointInstance joint)
+                        {
+                            joint.C0 = joint.C0.Scale(scale);
+                            joint.C1 = joint.C1.Scale(scale);
+                        }
+                    }
+                }
 
                 model.PivotTo(cf);
                 model.Parent = workspace;

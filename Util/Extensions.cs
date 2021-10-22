@@ -239,5 +239,13 @@ public static class Extensions
             }
         }
     }
+
+    public static CFrame Scale(this CFrame cf, float scale)
+    {
+        var pos = cf.Position;
+        var rot = cf - pos;
+
+        return new CFrame(pos * scale) * rot;
+    }
 }
 

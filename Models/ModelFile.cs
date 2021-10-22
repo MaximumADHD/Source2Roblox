@@ -250,7 +250,7 @@ namespace Source2Roblox.Models
                     if (GameMount.HasFile(newPath, game) && materialId < materialPaths.Count)
                         lodMaterials[materialId] = newPath;
                     else
-                        Console.WriteLine($"\tMissing replacement material {oldName}->{newName}?");
+                        Program.LogError($"\tMissing replacement material {oldName}->{newName}?");
 
                     replaceIndex += 0x06;
                     vtxStream.Position = replaceIndex;
