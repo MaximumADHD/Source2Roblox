@@ -238,6 +238,7 @@ namespace Source2Roblox.Geometry
 
             var lastBodyPart = "";
             var meshBinds = new Dictionary<MeshPart, RobloxMeshFile>();
+            var rootBone = model.Bones.First();
 
             foreach (var meshBuffer in meshBuffers)
             {
@@ -502,6 +503,15 @@ namespace Source2Roblox.Geometry
             string exportPath = Path.Combine(rootWorkDir, modelDir, $"{modelName}.rbxm");
             largestPart.PivotOffset = largestPart.CFrame.Inverse();
             exportModel.PrimaryPart = largestPart;
+
+            if (rootBone != null)
+            {
+                var rotation = BONE_OFFSET
+                             * Entity.GetCFrame(new Vector3(), rootBone.Rotation / DEG_TO_RAD)
+                             * BONE_OFFSET.Inverse();
+
+                largestPart.PivotOffset *= rotation;
+            }
 
             exportBlob.Save(exportPath);
             Console.WriteLine($"\tWrote {exportPath}");
