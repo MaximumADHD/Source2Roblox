@@ -63,7 +63,15 @@ namespace Source2Roblox.Geometry
             if (face != null)
                 face.Material = material;
 
+            bool skip = false;
+
             if (material.ToLowerInvariant() == "tools/toolstrigger")
+                skip = true;
+
+            if (material.Contains("water") && material.Contains("_beneath"))
+                skip = true;
+
+            if (skip)
             {
                 if (face != null)
                     face.Skip = true;
