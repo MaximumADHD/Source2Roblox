@@ -13,15 +13,23 @@ Source2Roblox is a super awesome C# console application that can:
 
 This program is not user-friendly and will not be made easier to use.<br/> But if you're feeling brave enough, you can set it up with the following steps:
 
+#### You need to add your credentials inside the Util/AssetManager.cs file
+###### (Roblox user account cookie, [Cloud API key](https://create.roblox.com/docs/reference/cloud/assets-usage-guide) and account user id are necessary credentials in order to allow asset uploading)
+#### Once the assets are done uploading and you are prompted to open studio, I recommend waiting for all the assets to go through moderation before opening the place file; if you load a TextureAppearance while one of the textures used isn't available, the whole TextureAppearance for the object will be halted and you will need to edit the properties for it to update. 
+###### (Change one of the textures to 'rbxassetid://0' and back to the original id)
+
 1. You'll need to install the [Roblox Studio Mod Manager](https://github.com/MaximumADHD/Roblox-Studio-Mod-Manager) since the program currently targets `%localappdata%\Roblox Studio\content` for deploying local files.
-2. Install Visual Studio 2019 with `Visual C#` and `.NET Framework 4.7.2`
-3. Clone the following GitHub repositories into a single directory on your file system:
+2. Install Visual Studio 2019 with `Visual C#` and `.NET Framework 4.8.0`
+3. Clone the following GitHub repositories into a single directory on your file system: (CLONING MEANS USING THE [GIT CLI](https://git-scm.com/downloads) LIKE THIS: `git clone https://github.com/user/repository.git`)
    - https://github.com/MaximumADHD/Source2Roblox
    - https://github.com/MaximumADHD/ValveKeyValue
    - https://github.com/MaximumADHD/Roblox-File-Format
 4. Open the solution file `Source2Roblox.sln`
 5. Right click on the `Source2Roblox` project and click Properties
 6. Navigate to the `Debug` tab, and use some of the following command line arguments to get things up and running:
+
+### IF YOU ARE MISSING A DLL FOR "Roblox-File-Format" YOU CAN FIND IT INSIDE THE "Roblox-File-Format" FOLDER OR GET IT FROM [HERE](https://github.com/MaximumADHD/Roblox-File-Format/blob/main/RobloxFileFormat.dll) AND MOVE IT TO "Roblox-File-Format/bin/Debug"
+##### You can also grab [this script](https://gist.github.com/dowoge/9c16fd891009a73135c58bafebd69fac) which will create a script that once loaded will copy the Lighting and Lightky.Sky instance present in studio at the time of execution
 
 | **Argument**                         | **Required?** | **Example**                                                                         |
 |--------------------------------------|---------------|-------------------------------------------------------------------------------------|
