@@ -49,26 +49,6 @@ namespace Source2Roblox.Upload
         private readonly SemaphoreSlim UploadSemaphore = new SemaphoreSlim(1, 4);
         private readonly Dictionary<string, bool> UploadConsent = new Dictionary<string, bool>();
 
-
-        public async Task<string> Get(string url)
-        {
-            using (var client = new HttpClient())
-            {
-                try
-                {
-                    HttpResponseMessage response = await client.GetAsync(url);
-                    response.EnsureSuccessStatusCode();
-                    string responseBody = await response.Content.ReadAsStringAsync();
-                    return responseBody;
-                }
-                catch (HttpRequestException e)
-                {
-                    Console.WriteLine($"Error: {e.Message}");
-                    return null;
-                }
-            }
-        }
-
         public AssetManager(string rootDir, string rbxAssetDir)
         {
             RootDir = rootDir;
@@ -174,15 +154,27 @@ namespace Source2Roblox.Upload
                                         string getOperationURL = $"{getOperation}/{operationId}";
 
                                         var response_2 = await client.GetAsync(getOperationURL);
+                                        response_2.EnsureSuccessStatusCode();
 
                                         var response_2Content = await response_2.Content.ReadAsStringAsync();
 
                                         var response_2Json = JObject.Parse(response_2Content);
 
-                                        bool isDone = (bool)response_2Json["done"];
-                                        if (!isDone)
-                                        {
-                                            throw new Exception("something went wrong and the asset is still uploading even after a while");
+                                        var isDone = response_2Json["done"];
+
+                                        int retryIsDone = 0;
+
+                                        while (string.IsNullOrEmpty((string)isDone) && !string.IsNullOrEmpty((string)response_2Json["path"]) && retryIsDone < 5) {
+                                            Console.WriteLine("Upload is not done waiting, attempt #" +retryIsDone);
+                                            retryIsDone++;
+                                            response_2 = await client.GetAsync(getOperationURL);
+
+                                            response_2Content = await response_2.Content.ReadAsStringAsync();
+
+                                            response_2Json = JObject.Parse(response_2Content);
+
+                                            isDone = response_2Json["done"];
+                                            await Task.Delay(3000);
                                         }
 
                                         string assetId = response_2Json["response"]["assetId"].ToString();
@@ -243,7 +235,7 @@ namespace Source2Roblox.Upload
                                             }
 
                                             File.WriteAllText(assetPath, asset);
-                                            Console.WriteLine($"Uploaded {localPath}: {asset} -> {assetPath}");
+                                            Console.WriteLine($"Uploaded: {asset} -> {assetPath}");
 
                                             await Task.Delay(500);
                                             break;
@@ -268,7 +260,7 @@ namespace Source2Roblox.Upload
                                     if (xsrf)
                                         continue;
 
-                                    Console.WriteLine(e.Message);
+                                    Console.WriteLine(e.Message + ": " + e.StackTrace);
                                     if (!e.Message.ToLower().Contains("moderated") && !e.Message.ToLower().Contains("inappropriate"))
                                     {
                                         Console.WriteLine("Cooling down from possible asset overload...");
