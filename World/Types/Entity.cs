@@ -180,9 +180,15 @@ namespace Source2Roblox.World.Types
             {
                 var origin = Get<Vector3>("origin");
                 var angles = Get<Vector3>("angles");
-
-                if (origin == null || angles == null)
+                if (origin == null)
+                {
                     return null;
+                }
+
+                if (angles == null)
+                {
+                    angles = new Vector3(0,0,0);
+                }
 
                 return GetCFrame(origin, angles);
             }
