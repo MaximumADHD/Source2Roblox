@@ -68,12 +68,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Forms\Uploader.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="Forms\Uploader.Designer.cs">
-      <DependentUpon>Uploader.cs</DependentUpon>
-    </Compile>
     <Compile Include="Geometry\MeshTypes\ObjMesh.cs" />
     <Compile Include="Geometry\MeshTypes\PhysicsMesh.cs" />
     <Compile Include="Geometry\MeshTypes\RobloxMesh.cs" />
@@ -86,7 +80,6 @@
     <Compile Include="Models\SubFiles\VertexData.cs" />
     <Compile Include="Octree\OctreeNode.cs" />
     <Compile Include="Octree\OctreeRegion.cs" />
-    <Compile Include="Util\AssetManager.cs" />
     <Compile Include="Util\Formatting.cs" />
     <Compile Include="Octree\Octree.cs" />
     <Compile Include="Textures\ValveMaterial.cs" />
@@ -148,11 +141,6 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Forms\Uploader.resx">
-      <DependentUpon>Uploader.cs</DependentUpon>
-    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
