@@ -13,6 +13,14 @@ using RobloxFiles.DataTypes;
 
 namespace Source2Roblox.Geometry
 {
+    public enum RobloxMeshLodType
+    {
+        None,
+        Unknown,
+        RbxSimplifier,
+        ZeuxMeshOptimizer,
+    }
+
     public class RobloxVertex
     {
         public Vector3 Position = new Vector3();
@@ -90,6 +98,45 @@ namespace Source2Roblox.Geometry
         }
     }
 
+    public class FloatMatrix
+    {
+        public readonly uint Rows;
+        public readonly uint Cols;
+        public readonly float[] Data;
+
+        public FloatMatrix(BinaryReader reader)
+        {
+            var version = reader.ReadUInt32();
+            Debug.Assert(version == 1 || version == 2, "Unsupported UnitSize!");
+            
+            Rows = reader.ReadUInt32();
+            Cols = reader.ReadUInt32();
+            Data = new float[Rows * Cols];
+
+            if (version == 1)
+            {
+                for (int i = 0; i < Data.Length; i++)
+                {
+                    Data[i] = reader.ReadSingle();
+                }
+            }
+            else
+            {
+                float min = reader.ReadSingle();
+                float max = reader.ReadSingle();
+
+                var range = max - min;
+                var alpha = range > 1e-4 ? range / 65535f : 0;
+
+                for (int i = 0; i < Data.Length; i++)
+                {
+                    var value = reader.ReadUInt16();
+                    Data[i] = (value * alpha) + min;
+                }
+            }
+        }
+    }
+
     public class RobloxMesh
     {
         public int NumFaces => Faces.Count;
@@ -101,6 +148,7 @@ namespace Source2Roblox.Geometry
 
     public class RobloxMeshFile
     {
+        public RobloxMeshLodType LodType = RobloxMeshLodType.None;
         public List<RobloxVertex> Verts = new List<RobloxVertex>();
         public List<RobloxMesh> Meshes = new List<RobloxMesh>();
         public List<Bone> Bones = new List<Bone>();
@@ -163,6 +211,133 @@ namespace Source2Roblox.Geometry
             }
         }
 
+        private void LoadFacsData(byte[] facsBuffer)
+        {
+            using (var facsStream = new MemoryStream(facsBuffer))
+            using (var facsReader = new BinaryReader(facsStream))
+            {
+                int boneNameTblSize = facsReader.ReadInt32();
+                int controlNameTblSize = facsReader.ReadInt32();
+
+                int matrixDataSize = facsReader.ReadInt32();
+                int unknown = facsReader.ReadInt32();
+
+                int sizeof_twoPoseCorrectives = facsReader.ReadInt32();
+                int sizeof_threePoseCorrectives = facsReader.ReadInt32();
+
+                var boneNames = new List<string>();
+                var boneBuffer = facsReader.ReadBytes(boneNameTblSize);
+
+                using (var boneStream = new MemoryStream(boneBuffer))
+                using (var boneReader = new BinaryReader(boneStream))
+                {
+                    while (boneStream.Position < boneStream.Length)
+                    {
+                        string name = boneReader.ReadString(null);
+                        boneNames.Add(name);
+                    }
+                }
+
+                var controlNames = new List<string>();
+                var controlBuffer = facsReader.ReadBytes(controlNameTblSize);
+
+                using (var controlStream = new MemoryStream(controlBuffer))
+                using (var controlReader = new BinaryReader(controlStream))
+                {
+                    while (controlStream.Position < controlStream.Length)
+                    {
+                        string name = controlReader.ReadString(null);
+                        controlNames.Add(name);
+                    }
+                }
+
+                var numTwoPoseCorrectives = sizeof_twoPoseCorrectives / 4;
+                var numThreePoseCorrectives = sizeof_threePoseCorrectives / 6;
+
+                var numFacePoses = 50 + numTwoPoseCorrectives + numThreePoseCorrectives;
+                var numFaceBones = boneNames.Count;
+
+                var facePoses = new Dictionary<string, CFrame>[numFacePoses];
+                var matrixData = facsReader.ReadBytes(matrixDataSize);
+
+                using (var matrixStream = new MemoryStream(matrixData))
+                using (var matrixReader = new BinaryReader(matrixStream))
+                {
+                    var posX = new FloatMatrix(matrixReader);
+                    var posY = new FloatMatrix(matrixReader);
+                    var posZ = new FloatMatrix(matrixReader);
+
+                    var rotX = new FloatMatrix(matrixReader);
+                    var rotY = new FloatMatrix(matrixReader);
+                    var rotZ = new FloatMatrix(matrixReader);
+
+                    for (int row = 0; row < numFaceBones; row++)
+                    {
+                        var begin = row * numFacePoses;
+                        var boneName = boneNames[row];
+
+                        for (int col = 0; col < numFacePoses; col++)
+                        {
+                            var set = facePoses[col];
+
+                            if (set == null)
+                            {
+                                set = new Dictionary<string, CFrame>();
+                                facePoses[col] = set;
+                            }
+
+                            const float deg2rad = (float)Math.PI / 180f;
+                            var index = begin + col;
+
+                            var px = posX.Data[index];
+                            var py = posY.Data[index];
+                            var pz = posZ.Data[index];
+
+                            var rx = rotX.Data[index] * deg2rad;
+                            var ry = rotY.Data[index] * deg2rad;
+                            var rz = rotZ.Data[index] * deg2rad;
+
+                            var cf = CFrame.Angles(rx, ry, rz);
+                            cf *= new CFrame(px, py, pz);
+
+                            set.Add(boneName, cf);
+                        }
+                    }
+                }
+
+                var twoPoseCorrectives = new string[sizeof_twoPoseCorrectives / 4];
+                var threePoseCorrectives = new string[sizeof_threePoseCorrectives / 6];
+
+                for (int i = 0; i < twoPoseCorrectives.Length; i++)
+                {
+                    var indexA = facsReader.ReadUInt16();
+                    var indexB = facsReader.ReadUInt16();
+
+                    var nameA = controlNames[indexA];
+                    var nameB = controlNames[indexB];
+
+                    var name = $"{nameA} -> {nameB}";
+                    twoPoseCorrectives[i] = name;
+                }
+
+                for (int i = 0; i < threePoseCorrectives.Length; i++)
+                {
+                    var indexA = facsReader.ReadUInt16();
+                    var indexB = facsReader.ReadUInt16();
+                    var indexC = facsReader.ReadUInt16();
+
+                    var nameA = controlNames[indexA];
+                    var nameB = controlNames[indexB];
+                    var nameC = controlNames[indexC];
+
+                    var name = $"{nameA} + {nameB} + {nameC}";
+                    threePoseCorrectives[i] = name;
+                }
+
+                // TODO: Put this data somewhere lol.
+            }
+        }
+
         private void LoadGeometry_Binary(BinaryReader reader)
         {
             string versionTag = reader.ReadString(13);
@@ -180,10 +355,14 @@ namespace Source2Roblox.Geometry
             int numSubsets = 0;
             int nameTableSize = 0;
 
+            bool hasFacs = false;
+            int facsBuffSize = 0;
+
             if (version >= 4)
             {
-                reader.Skip(2);
-
+                LodType = (RobloxMeshLodType)reader.ReadByte();
+                reader.Skip(1); // padding
+                
                 numVerts = reader.ReadInt32();
                 numFaces = reader.ReadInt32();
 
@@ -195,6 +374,12 @@ namespace Source2Roblox.Geometry
 
                 reader.Skip(2);
                 hasColor = true;
+
+                if (version >= 5)
+                {
+                    hasFacs = reader.ReadInt32() == 1;
+                    facsBuffSize = reader.ReadInt32();
+                }
             }
             else
             {
@@ -404,6 +589,15 @@ namespace Source2Roblox.Geometry
 
                 Meshes.Add(mesh);
             }
+
+            if (version >= 5 && hasFacs)
+            {
+                byte[] facsBuffer = reader.ReadBytes(facsBuffSize);
+                LoadFacsData(facsBuffer);
+            }
+
+            var stream = reader.BaseStream;
+            Debug.Assert(stream.Position == stream.Length, "Unexpected data at EOF!");
         }
 
         public void SaveV1(Stream stream)
@@ -726,7 +920,7 @@ namespace Source2Roblox.Geometry
 
                 if (version > 3)
                 {
-                    writer.Write((ushort)Meshes.Count);
+                    writer.Write((ushort)RobloxMeshLodType.Unknown);
 
                     writer.Write(Verts.Count);
                     writer.Write(faces.Count);
